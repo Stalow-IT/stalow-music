@@ -207,6 +207,19 @@ object YouTube {
         songs
     }
 
+    /** Stalow: a podcast channel's "Latest episodes" and "Podcasts" shelves (see [StalowPodcastParser]). */
+    suspend fun channelPodcastSections(browseId: String, channelName: String): Result<List<com.metrolist.innertube.pages.StalowPodcastParser.Section>> = runCatching {
+        val json = innerTube.browse(WEB_REMIX, browseId).body<kotlinx.serialization.json.JsonObject>()
+        com.metrolist.innertube.pages.StalowPodcastParser.channelSections(json, browseId, channelName)
+    }
+
+    /** Stalow: a podcast show ("MPSP" + its playlist id) and its first episodes. */
+    suspend fun podcastShow(id: String): Result<com.metrolist.innertube.pages.PodcastPage> = runCatching {
+        val browseId = if (id.startsWith("MPSP")) id else "MPSP$id"
+        val json = innerTube.browse(WEB_REMIX, browseId).body<kotlinx.serialization.json.JsonObject>()
+        com.metrolist.innertube.pages.StalowPodcastParser.showPage(json, browseId) ?: error("not a podcast show: $id")
+    }
+
     suspend fun artist(browseId: String): Result<ArtistPage> = runCatching {
         val response = innerTube.browse(WEB_REMIX, browseId).body<BrowseResponse>()
 

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
-const { loadArtists, Catalog } = require('../src/catalog');
+const { loadArtists, loadChannels, Catalog } = require('../src/catalog');
 const { searchAll, keepFullPlaylists } = require('../src/search');
 
 const list = { version: 1, artists: [
@@ -82,4 +82,32 @@ test('Welcome lists recently played artists first, then others; unapproved ids a
   assert.deepStrictEqual(home.slice(0, 2).map((x) => x.id), [b, a]);
   assert.strictEqual(new Set(home.map((x) => x.id)).size, 18);
   assert.strictEqual(c.homeArtists([], 18).length, 18);
+});
+
+test('the shared Podcasts, Shiurim and Videos channel lists load with real channel ids', () => {
+  const ch = loadChannels(path.join(__dirname, '..', 'data', 'channels.json'));
+  assert.ok(ch.version >= 2);
+  for (const c of ['podcasts', 'shiurim', 'videos']) {
+    assert.ok(ch[c].length > 0, c + ' is empty');
+    assert.ok(ch[c].every((x) => /^UC[\w-]{22}$/.test(x.id) && x.name));
+  }
+});
+
+test('an approved channel opens and vouches for its own uploads, other channels do not', () => {
+  const channels = { version: 2,
+    podcasts: [{ id: 'UCpppppppppppppppppppppp', name: 'Teef Teef' }],
+    shiurim: [{ id: 'UCssssssssssssssssssssss', name: 'Shiur Channel' }, { id: 'UCffffffffffffffffffffff', name: 'Female Shiur', isFemale: true }],
+    videos: [{ id: 'UCpppppppppppppppppppppp', name: 'Teef Teef' }] };
+  const c = new Catalog(list, { channels });
+  assert.ok(c.canOpen('UCpppppppppppppppppppppp'));
+  assert.ok(!c.canOpen('UCzzzzzzzzzzzzzzzzzzzzzz'));
+  assert.ok(c.songAllowed({ artists: [{ id: 'UCssssssssssssssssssssss' }] }));
+  assert.ok(c.songAllowed({ artists: [] }, 'UCssssssssssssssssssssss'));
+  assert.ok(!c.songAllowed({ artists: [{ id: 'UCzz' }] }));
+  assert.deepStrictEqual(c.channelList('shiurim').map((x) => x.title), ['Shiur Channel']);
+  assert.deepStrictEqual(c.channelList('videos').map((x) => x.id), ['UCpppppppppppppppppppppp']);
+  assert.deepStrictEqual(c.channelList('podcasts', 'zzz'), []);
+  assert.ok(!c.canOpen('UCffffffffffffffffffffff'));
+  c.setAllowFemale(true);
+  assert.deepStrictEqual(c.channelList('shiurim').map((x) => x.title), ['Female Shiur', 'Shiur Channel']);
 });

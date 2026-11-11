@@ -153,16 +153,19 @@ class ZemerSearchRepository @Inject constructor(
     @Suppress("UNUSED_PARAMETER")
     suspend fun artist(id: String, options: ZemerSearchOptions): ArtistPage? = catalog.artist(id)
 
-    // --- Podcasts: the podcast catalog lived on the original server; none in Stalow Music. ---
+    // --- Podcasts: the podcast catalog lived on the original server. Stalow Music's approved channels
+    // (StalowChannels) open as YouTube Music channel pages; the server-only podcast features stay empty. ---
 
     @Suppress("UNUSED_PARAMETER")
     suspend fun kidZonePodcasts(options: ZemerSearchOptions): List<PodcastItem>? = emptyList()
 
     @Suppress("UNUSED_PARAMETER")
-    suspend fun podcast(id: String, offset: Int, options: ZemerSearchOptions): PodcastPage? = null
+    suspend fun podcast(id: String, offset: Int, options: ZemerSearchOptions): PodcastPage? =
+        if (offset > 0) null else catalog.podcastShow(id)
 
     @Suppress("UNUSED_PARAMETER")
-    suspend fun podcastChannel(id: String, options: ZemerSearchOptions): ZemerResultMapper.PodcastChannelPage? = null
+    suspend fun podcastChannel(id: String, options: ZemerSearchOptions): ZemerResultMapper.PodcastChannelPage? =
+        catalog.channel(id)?.let { ZemerResultMapper.PodcastChannelPage(it, episodesNextOffset = null) }
 
     @Suppress("UNUSED_PARAMETER")
     suspend fun podcastChannelEpisodes(

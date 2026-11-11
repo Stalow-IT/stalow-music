@@ -5,6 +5,7 @@ import com.jtech.zemer.db.entities.ArtistWhitelistEntity
 import com.jtech.zemer.utils.ContentFilterConfig
 import com.jtech.zemer.utils.ContentFilterState
 import com.jtech.zemer.utils.WhitelistCache
+import com.jtech.zemer.utils.approvedChannelPasses
 import com.jtech.zemer.utils.filterWhitelisted
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.YouTube.SearchFilter
@@ -140,9 +141,12 @@ class LocalCatalog(private val database: MusicDatabase) {
 
     // ---- pages -------------------------------------------------------------------------------------------
 
-    /** An artist page with every section filtered; null (not available) for an artist that is not approved. */
+    /**
+     * An artist page with every section filtered; null (not available) for an artist that is not approved.
+     * An approved channel (Podcasts, Shiurim or Videos) that is not a music artist opens as [channel].
+     */
     suspend fun artist(id: String): ArtistPage? {
-        if (!isApprovedArtist(id)) return null
+        if (!isApprovedArtist(id)) return if (approvedChannelPasses(listOf(id), config)) channel(id) else null
         val page = YouTube.artist(id).getOrElse { throw it.asIo("artist") }
         val sections = page.sections.mapNotNull { section ->
             val filtered = section.items.filterWhitelisted(database, config, fallbackArtistId = id)
@@ -154,6 +158,35 @@ class LocalCatalog(private val database: MusicDatabase) {
             if (items.isEmpty()) null else section.copy(items = items)
         }
         return page.copy(sections = sections)
+    }
+
+    /**
+     * An approved channel's page (Podcasts, Shiurim or Videos, see [com.jtech.zemer.utils.StalowChannels]):
+     * the channel vouches for its own uploads and playlists, so those pass; anything else on the page still
+     * needs an approved artist. Null for a channel that is not approved.
+     */
+    suspend fun channel(id: String): ArtistPage? {
+        if (!approvedChannelPasses(listOf(id), config)) return null
+        val page = YouTube.artist(id).getOrElse { throw it.asIo("channel") }
+        // Podcast channels: "Latest episodes" and "Podcasts" (shows), which the artist page reader skips.
+        val podcastSections = YouTube.channelPodcastSections(id, page.artist.title).getOrNull().orEmpty()
+            .filter { ps -> page.sections.none { it.title == ps.title } }
+            .map { com.metrolist.innertube.pages.ArtistSection(title = it.title, items = it.items, moreEndpoint = null) }
+        val sections = (podcastSections + page.sections).mapNotNull { section ->
+            val items = section.items.filterWhitelisted(database, config, fallbackArtistId = id)
+            if (items.isEmpty()) null else section.copy(items = items)
+        }
+        return page.copy(sections = sections)
+    }
+
+    /** A podcast show by an approved channel, with its first episodes; null when the show's channel is not approved. */
+    suspend fun podcastShow(id: String): com.metrolist.innertube.pages.PodcastPage? {
+        val page = YouTube.podcastShow(id).getOrElse { throw it.asIo("podcast") }
+        val channelId = page.podcast.channelId ?: return null
+        if (!approvedChannelPasses(listOf(channelId), config)) return null
+        val episodes = page.episodes.filterWhitelisted(database, config, fallbackArtistId = channelId)
+            .filterIsInstance<com.metrolist.innertube.models.EpisodeItem>()
+        return page.copy(episodes = episodes, continuation = null)
     }
 
     /** An album with only approved artists' songs; null when the album has none. */

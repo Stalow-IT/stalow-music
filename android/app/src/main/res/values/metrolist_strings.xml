@@ -640,6 +640,11 @@
         <string name="podcasts">Podcasts</string>
         <string name="refresh_artists">Refresh artists</string>
         <string name="refresh_podcasts">Refresh podcasts</string>
+        <string name="shiurim">Shiurim</string>
+        <string name="shiurim_empty">Shiurim channels will show up here</string>
+        <string name="search_shiurim">Search shiurim…</string>
+        <string name="video_channels_empty">Video channels will show up here</string>
+        <string name="search_video_channels">Search video channels…</string>
         <string name="search_podcasts">Search podcasts…</string>
         <string name="search_episodes">Search episodes…</string>
         <string name="search_episodes_for">Search episodes for “%1$s”</string>

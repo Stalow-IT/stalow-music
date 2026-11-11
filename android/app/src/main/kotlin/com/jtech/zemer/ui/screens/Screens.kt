@@ -35,6 +35,20 @@ sealed class Screens(
         route = "podcasts"
     )
 
+    object Shiurim : Screens(
+        titleId = R.string.shiurim,
+        iconIdInactive = R.drawable.genre_menu_book,
+        iconIdActive = R.drawable.genre_menu_book,
+        route = "shiurim"
+    )
+
+    object Videos : Screens(
+        titleId = R.string.videos,
+        iconIdInactive = R.drawable.ondemand_video,
+        iconIdActive = R.drawable.ondemand_video,
+        route = "videos"
+    )
+
     object KidZone : Screens(
         titleId = R.string.kid_zone,
         iconIdInactive = R.drawable.kid_zone,
@@ -57,11 +71,11 @@ sealed class Screens(
     )
 
     companion object {
-        val MainScreens = listOf(Home, Artists, Podcasts, KidZone, Search, Library)
+        val MainScreens = listOf(Home, Artists, Podcasts, Shiurim, Videos, KidZone, Search, Library)
 
         // The whitelist browse screens keep their top bar PINNED: no collapsing nested-scroll
         // connection is attached on these routes (MainActivity), so scrolling the catalog never
         // hides the bar.
-        val PinnedTopBarRoutes = setOf(Artists.route, Podcasts.route, KidZone.route)
+        val PinnedTopBarRoutes = setOf(Artists.route, Podcasts.route, Shiurim.route, Videos.route, KidZone.route)
     }
 }

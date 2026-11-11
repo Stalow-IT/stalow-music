@@ -552,7 +552,7 @@ function cards(items) {
     class: 'card' + (it.type === 'artist' ? ' round' : ''),
     onclick: () => open(it),
   }, img(it.thumbnail, it.title, { isVideo: it.isVideo }), el('div', { class: 't ellipsis', text: it.title }),
-  el('div', { class: 's muted ellipsis', text: it.type === 'artist' ? t('artist') : it.type === 'album' ? [artistNames(it), it.year].filter(Boolean).join(' · ') || t('album') : it.type === 'playlist' ? t('playlist') : artistNames(it) }))));
+  el('div', { class: 's muted ellipsis', text: it.isChannel ? t('channel') : it.type === 'artist' ? t('artist') : it.type === 'album' ? [artistNames(it), it.year].filter(Boolean).join(' · ') || t('album') : it.type === 'playlist' ? t('playlist') : artistNames(it) }))));
 }
 function open(it) {
   // pass the card's picture along, used when the page itself has none
@@ -566,6 +566,18 @@ function approvedNote() {
 }
 
 // ---------- views ----------
+/** One category of approved channels (Podcasts, Shiurim or Videos); a card opens the channel's page. */
+async function channelsView(category) {
+  const title = t(category);
+  const all = await stalow.channels(category, '');
+  const filter = el('input', { class: 'searchbox', type: 'search', placeholder: t('filter_channels_hint', all.length) });
+  const list = el('div');
+  const show = (items) => list.replaceChildren(items.length ? cards(items) : el('div', { class: 'status', text: t('no_channels_match') }));
+  filter.addEventListener('input', () => { const q = filter.value.trim().toLowerCase(); show(all.filter((c) => c.title.toLowerCase().includes(q))); });
+  view.replaceChildren(el('h1', { text: title }), filter, list);
+  show(all);
+}
+
 const views = {
   async home() {
     view.replaceChildren(el('h1', { text: t('welcome') }), el('div', { class: 'status', text: t('loading') }));
@@ -639,6 +651,9 @@ const views = {
       el('div', { class: 'letters' }, letters.map((L) => el('button', { text: L, onclick: () => show(all.filter((a) => (a.title[0] || '#').toUpperCase() === L)) }))), list);
     show(all);
   },
+  podcasts() { return channelsView('podcasts'); },
+  shiurim() { return channelsView('shiurim'); },
+  videos() { return channelsView('videos'); },
   async artist(arg) {
     const id = typeof arg === 'string' ? arg : arg.id;
     status(t('loading'));
@@ -648,7 +663,7 @@ const views = {
     const songs = p.sections.flatMap((s) => s.items).filter((x) => x.type === 'song');
     view.replaceChildren(
       el('div', { class: 'head round' }, img(p.artist.thumbnail, p.artist.title), el('div', {},
-        el('div', { class: 'overline', text: t('stalow_approved_artist') }), el('h1', { text: p.artist.title }),
+        el('div', { class: 'overline', text: t(p.isChannel ? 'stalow_approved_channel' : 'stalow_approved_artist') }), el('h1', { text: p.artist.title }),
         el('div', { class: 'actions' },
           songs.length ? el('button', { class: 'btn', title: t('shuffle'), onclick: () => playQueue(shuffled(songs), 0) }, icon('play'), t('play')) : '',
           songs.length ? el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(songs), 0) }, icon('shuffle'), t('shuffle')) : '',

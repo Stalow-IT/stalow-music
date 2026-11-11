@@ -27,7 +27,6 @@ class StalowIndependenceTest {
 
     @Test
     fun `the lists the original servers held are empty and server-only features are unavailable`() = runBlocking {
-        assertTrue(ZemerContentClient.podcastsWhitelist().isEmpty())
         assertTrue(ZemerContentClient.blockedIds().isEmpty())
         assertTrue(ZemerContentClient.removedArtists().isEmpty())
         assertTrue(ZemerContentClient.israeliArtists().isEmpty())

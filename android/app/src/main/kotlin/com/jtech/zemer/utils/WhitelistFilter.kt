@@ -146,14 +146,14 @@ suspend fun List<YTItem>.filterWhitelisted(
                 // would wrongly drop every one.
                 if (item.isEpisode) {
                     database.podcastPasses(item.artists.map { it.id }, config)
-                } else item.isWhitelisted(
+                } else (item.isWhitelisted(
                     database,
                     allowedIds,
                     artistCache,
                     config,
                     requireAllArtists,
                     fallbackArtistId
-                ).also {
+                ) || approvedChannelPasses(item.artists.map { it.id } + fallbackArtistId, config)).also {
                     Timber.d("WhitelistFilter: SongItem '${item.title}' by ${item.artists.joinToString { it -> it.name }} - allowed=$it")
                 }
             is AlbumItem -> item.isWhitelisted(
@@ -166,10 +166,12 @@ suspend fun List<YTItem>.filterWhitelisted(
             ).also {
                 Timber.d("WhitelistFilter: AlbumItem '${item.title}' by ${item.artists?.joinToString { it -> it.name }} - allowed=$it")
             }
-            is ArtistItem -> item.isWhitelisted(database, allowedIds, artistCache, config).also {
+            is ArtistItem -> (item.isWhitelisted(database, allowedIds, artistCache, config) ||
+                approvedChannelPasses(listOf(item.id), config)).also {
                 Timber.d("WhitelistFilter: ArtistItem '${item.title}' (${item.id}) - allowed=$it")
             }
-            is PlaylistItem -> item.isWhitelisted(database, allowedIds, artistCache, config).also {
+            is PlaylistItem -> (item.isWhitelisted(database, allowedIds, artistCache, config) ||
+                approvedChannelPasses(listOf(item.author?.id), config)).also {
                 Timber.d("WhitelistFilter: PlaylistItem '${item.title}' - allowed=$it")
             }
             // Podcasts/episodes are gated by the SEPARATE podcast whitelist (PodcastWhitelistCache),
@@ -241,6 +243,16 @@ suspend fun List<SongItem>.filterWhitelistedWithLocalArtists(
  * subscribed/opened show carries `channelId`). An unknown show resolves to no channel and is therefore
  * dropped when filters are on (kosher-safe). Filters-off passes everything, like the music path.
  */
+/**
+ * Whether one of [ids] is an approved channel (Podcasts, Shiurim or Videos, see [StalowChannels]): such a
+ * channel vouches for everything it uploads, so its videos pass even though it is not a music artist.
+ * Unlike [podcastPasses] this is not tied to Block Podcasts, which only hides the podcast category.
+ */
+internal fun approvedChannelPasses(ids: List<String?>, config: ContentFilterConfig): Boolean {
+    if (!config.filtersEnabled) return true
+    return ids.any { it != null && PodcastWhitelistCache.channelPasses(it, config.allowFemaleSingers) }
+}
+
 private suspend fun MusicDatabase.podcastPasses(
     ids: List<String?>,
     config: ContentFilterConfig,

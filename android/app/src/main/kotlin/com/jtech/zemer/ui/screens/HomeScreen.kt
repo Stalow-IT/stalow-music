@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -609,6 +611,35 @@ fun HomeScreen(
                             onContinue = { playerConnection.playQueue(pcContinueQueue(offer)); pcContinued++ },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).animateItem(),
                         )
+                    }
+                }
+
+                // Stalow: shortcuts to the approved Podcasts, Shiurim and Videos channels.
+                item(key = "stalow_channel_shortcuts", contentType = "header") {
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
+                    ) {
+                        listOfNotNull(
+                            Screens.Podcasts.takeIf { !blockPodcasts },
+                            Screens.Shiurim,
+                            Screens.Videos,
+                        ).forEach { screen ->
+                            androidx.compose.material3.AssistChip(
+                                onClick = { navController.navigate(screen.route) },
+                                label = { Text(stringResource(screen.titleId)) },
+                                leadingIcon = {
+                                    Icon(
+                                        painter = painterResource(screen.iconIdInactive),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
 

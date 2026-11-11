@@ -96,6 +96,12 @@ fun NavGraphBuilder.navigationBuilder(
             WhitelistedPodcastsScreen(navController, searchBarScrollBehavior)
         }
     }
+    composable(Screens.Shiurim.route) {
+        ShiurimScreen(navController, searchBarScrollBehavior)
+    }
+    composable(Screens.Videos.route) {
+        VideoChannelsScreen(navController, searchBarScrollBehavior)
+    }
     composable(
         // kidZone: the KidZone-navigation-context flag (like isPodcastChannel) - a show opened from
         // the KidZone podcasts grid keeps every server call restricted to kid content (drill-in
