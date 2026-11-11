@@ -1,0 +1,14 @@
+'use strict';
+/* global stalow, S, applySetting, loadHistory, loadSearches, restoreSession, go, translateStatic */
+// Starts the app: settings first (theme, language), then history and the saved queue, then the start page.
+// Also used after Settings > Backup and restore > Restore, so a restored backup applies at once.
+async function startApp({ restoreQueue = true } = {}) {
+  try { Object.assign(S, await stalow.settings()); } catch { /* defaults */ }
+  applySetting();
+  translateStatic();
+  if (typeof S.volume === 'number') document.querySelector('#vol').value = S.volume;
+  await Promise.all([loadHistory(), loadSearches()]);
+  if (restoreQueue) await restoreSession();
+  go(S.startPage || 'home');
+}
+startApp();

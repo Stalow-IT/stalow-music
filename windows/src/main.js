@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
@@ -7,6 +7,8 @@ const { loadArtists, loadChannels, Catalog } = require('./catalog');
 const { Player } = require('./player');
 const { searchAll, keepFullPlaylists } = require('./search');
 const updater = require('./updater');
+const settingsSchema = require('./settings');
+const { getLyrics } = require('./lyrics');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -15,8 +17,35 @@ let win = null;
 let player = null;
 let catalog = null;
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
-const readSettings = () => { try { return JSON.parse(fs.readFileSync(settingsFile(), 'utf8')); } catch { return {}; } };
-const writeSettings = (s) => { try { fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 1)); } catch { /* ignore */ } };
+const readRaw = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
+const writeRaw = (file, data) => { try { fs.writeFileSync(file, JSON.stringify(data)); return true; } catch { return false; } };
+/** All settings, checked and completed with the defaults (see settings.js). */
+const readSettings = () => settingsSchema.normalize(readRaw(settingsFile(), {}));
+const writeSettings = (s) => writeRaw(settingsFile(), settingsSchema.normalize(s));
+
+// Listen history and search history, each in its own file (Settings > Privacy, and backups).
+const dataFile = (name) => path.join(app.getPath('userData'), `${name}.json`);
+const DATA = { history: 'history', searchHistory: 'search-history' };
+const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(x.id) ? {
+  type: 'song', id: x.id, title: String(x.title || '').slice(0, 300),
+  artists: (Array.isArray(x.artists) ? x.artists : []).filter((a) => a && typeof a.name === 'string').slice(0, 10).map((a) => ({ id: typeof a.id === 'string' ? a.id : null, name: a.name.slice(0, 200) })),
+  album: x.album && typeof x.album.title === 'string' ? { id: typeof x.album.id === 'string' ? x.album.id : '', title: x.album.title.slice(0, 300) } : null,
+  thumbnail: typeof x.thumbnail === 'string' && /^https:\/\//.test(x.thumbnail) ? x.thumbnail : '',
+  duration: typeof x.duration === 'number' ? x.duration : null,
+  ...(typeof x.playedAt === 'number' ? { playedAt: x.playedAt } : {}),
+} : null);
+const cleanHistory = (list) => (Array.isArray(list) ? list.map(cleanSong).filter(Boolean).slice(0, 500) : []);
+const cleanSearches = (list) => (Array.isArray(list) ? list.filter((q) => q && typeof q.q === 'string' && q.q.trim()).map((q) => ({ q: q.q.trim().slice(0, 200), at: typeof q.at === 'number' ? q.at : Date.now() })).slice(0, 200) : []);
+const cleanSession = (s) => {
+  if (!s || !Array.isArray(s.queue)) return null;
+  const queue = s.queue.map(cleanSong).filter(Boolean).slice(0, 300);
+  if (!queue.length) return null;
+  const r = s.radio && typeof s.radio.videoId === 'string' ? { videoId: s.radio.videoId, continuation: typeof s.radio.continuation === 'string' ? s.radio.continuation : null, started: !!s.radio.started } : null;
+  return { queue, index: Math.min(Math.max(0, s.index | 0), queue.length - 1), time: Math.max(0, Number(s.time) || 0), radio: r };
+};
+
+// Settings > Storage: the cache limit is set when the app starts.
+try { app.commandLine.appendSwitch('disk-cache-size', String(readSettings().maxCacheMB * 1024 * 1024)); } catch { /* defaults */ }
 
 // The queue and song are kept in a file (not browser storage), written at once, so a restart or an
 // update that closes the app straight away cannot lose them.
@@ -29,7 +58,7 @@ const send = (channel, payload) => { if (win && !win.isDestroyed()) win.webConte
 function createWindow() {
   win = new BrowserWindow({
     width: 1200, height: 800, minWidth: 820, minHeight: 560,
-    backgroundColor: '#061a46', title: 'Stalow Music',
+    backgroundColor: readSettings().theme === 'light' ? '#f4f5f7' : '#0f1117', title: 'Stalow Music',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -65,6 +94,7 @@ const handlers = {
     if (!catalog.canOpen(id)) return { notApproved: true };
     const page = await api.artist(id);
     const known = catalog.artists.find((a) => a.id === id) || catalog.channels.get(id);
+    page.isChannel = !catalog.isApprovedArtist(id);
     page.artist.title = page.artist.title || (known && known.name) || '';
     page.artist.thumbnail = page.artist.thumbnail || (known && (known.thumbnail || known.thumbnailUrl)) || '';
     page.sections = await Promise.all(page.sections.map(async (s) => {
@@ -102,7 +132,61 @@ const handlers = {
   'player:pause': async () => player.pause(),
   'player:seek': async (s) => player.seek(s),
   'player:volume': async (v) => { player.volume(v); writeSettings({ ...readSettings(), volume: v }); },
-  'app:settings': async () => ({ ...readSettings(), version: app.getVersion(), listVersion: catalog.version, artistCount: catalog.allowed.size }),
+  'app:settings': async () => ({ ...readSettings(), version: app.getVersion(), listVersion: catalog.version, artistCount: catalog.allowed.size, systemLocale: app.getLocale() }),
+  'settings:set': async ({ key, value } = {}) => {
+    const v = settingsSchema.clean(key, value);
+    if (v === undefined) throw new Error(`Setting not allowed: ${key}`);
+    const all = { ...readSettings(), [key]: v };
+    writeSettings(all);
+    applySettings(all, key);
+    return v;
+  },
+  'data:get': async (name) => { if (!DATA[name]) throw new Error('Unknown data'); return readRaw(dataFile(DATA[name]), []); },
+  'data:set': async ({ name, value } = {}) => {
+    if (!DATA[name]) throw new Error('Unknown data');
+    writeRaw(dataFile(DATA[name]), name === 'history' ? cleanHistory(value) : cleanSearches(value));
+  },
+  'lyrics:get': async (want) => {
+    if (!want || typeof want.videoId !== 'string') return null;
+    return getLyrics(want, readSettings().lyricsProviders, { api });
+  },
+  'storage:cacheSize': async () => {
+    const sizes = await Promise.all([session.defaultSession, session.fromPartition('persist:ytmusic')].map((s) => s.getCacheSize().catch(() => 0)));
+    return sizes.reduce((a, b) => a + b, 0);
+  },
+  'storage:clearCache': async () => {
+    await Promise.all([session.defaultSession, session.fromPartition('persist:ytmusic')].map((s) => s.clearCache().catch(() => {})));
+  },
+  'backup:export': async (extra = {}) => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const r = await dialog.showSaveDialog(win, { title: 'Back up Stalow Music', defaultPath: `Stalow-Music-backup-${stamp}.json`, filters: [{ name: 'Stalow Music backup', extensions: ['json'] }] });
+    if (r.canceled || !r.filePath) return { canceled: true };
+    const backup = {
+      app: 'Stalow Music', format: 1, created: new Date().toISOString(), version: app.getVersion(),
+      settings: readSettings(),
+      session: cleanSession(extra.session) || readSession(),
+      history: cleanHistory(readRaw(dataFile(DATA.history), [])),
+      searchHistory: cleanSearches(readRaw(dataFile(DATA.searchHistory), [])),
+    };
+    fs.writeFileSync(r.filePath, JSON.stringify(backup, null, 1));
+    return { file: r.filePath };
+  },
+  'backup:import': async () => {
+    const r = await dialog.showOpenDialog(win, { title: 'Restore Stalow Music', properties: ['openFile'], filters: [{ name: 'Stalow Music backup', extensions: ['json'] }] });
+    if (r.canceled || !r.filePaths[0]) return { canceled: true };
+    const stat = fs.statSync(r.filePaths[0]);
+    if (stat.size > 20 * 1024 * 1024) throw new Error('This file is too large to be a Stalow Music backup');
+    const b = readRaw(r.filePaths[0], null);
+    if (!b || b.app !== 'Stalow Music' || typeof b.settings !== 'object') throw new Error('This file is not a Stalow Music backup');
+    const settings = settingsSchema.normalize({ ...readSettings(), ...b.settings });
+    writeSettings(settings);
+    applySettings(settings);
+    if (Array.isArray(b.history)) writeRaw(dataFile(DATA.history), cleanHistory(b.history));
+    if (Array.isArray(b.searchHistory)) writeRaw(dataFile(DATA.searchHistory), cleanSearches(b.searchHistory));
+    const sess = cleanSession(b.session);
+    if (sess) writeSession(sess);
+    return { restored: true };
+  },
   'app:signin': async () => player.showSignIn(),
   'app:togglePlayer': async () => player.toggleVisible(),
   'app:openExternal': async (url) => { if (/^https:\/\//.test(url)) await shell.openExternal(url); },
@@ -112,7 +196,7 @@ const handlers = {
     const s = readSession(); if (s) writeSession({ ...s, resume: !!resume });
     installUpdate();
   },
-  'app:saveSession': async (s) => { if (s && Array.isArray(s.queue)) { const old = readSession(); writeSession({ ...s, resume: !!(old && old.resume) }); } },
+  'app:saveSession': async (s) => { const clean = cleanSession(s); if (clean) { const old = readSession(); writeSession({ ...clean, resume: !!(old && old.resume) }); } },
   'app:loadSession': async () => {
     const s = readSession();
     if (s && s.resume) writeSession({ ...s, resume: false }); // only the first start after an update resumes
@@ -153,14 +237,26 @@ function installUpdate() {
   app.quit();
 }
 
+/** Applies stored settings that the main process and the hidden player use (all of them, or just [changed]). */
+function applySettings(s, changed = null) {
+  const is = (...keys) => !changed || keys.includes(changed);
+  if (catalog && is('allowFemale', 'blockPodcasts')) { catalog.setAllowFemale(s.allowFemale); catalog.setFilters({ blockPodcasts: s.blockPodcasts }); }
+  if (is('language')) api.setLanguage(settingsSchema.contentLanguage(s.language, app.getLocale()));
+  if (player && is('audioQuality', 'audioNormalization', 'skipSilence', 'blockVideos')) {
+    player.setAudio({ quality: s.audioQuality, normalize: s.audioNormalization, skipSilence: s.skipSilence, blockVideo: s.blockVideos });
+  }
+}
+
 app.whenReady().then(async () => {
-  catalog = new Catalog(loadArtists(), { allowFemale: !!readSettings().allowFemale, channels: loadChannels() });
+  const startSettings = readSettings();
+  catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts, channels: loadChannels() });
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
     else if (ev.state === 'paused' || ev.state === 'ended') updateThumbar(false);
     send('player', ev);
   });
   await player.init();
+  applySettings(startSettings);
   player.win.webContents.on('did-navigate', (_e, url) => {
     // after signing in, hide the window again as soon as YouTube Music opens
     if (/^https:\/\/music\.youtube\.com\//.test(url) && player.win.isVisible() && player.signingIn) { player.signingIn = false; player.hide(); }

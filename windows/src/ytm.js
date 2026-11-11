@@ -79,7 +79,7 @@ function parseListItem(r, ctx = {}) {
   return {
     type: 'song', id: videoId, title, artists, thumbnail,
     album: albumRun ? { id: browseOf(albumRun).browseId, title: albumRun.text } : (ctx.album || null),
-    duration: toSeconds(durText), isVideo: /UGC|OMV/.test(mvt),
+    duration: toSeconds(durText), isVideo: /UGC|OMV/.test(mvt), isPodcast: /PODCAST/.test(mvt),
   };
 }
 
@@ -174,7 +174,8 @@ function parseNext(json) {
       const thumbs = p.thumbnail?.thumbnails || [];
       const albumRun = runs.find((r) => browseOf(r)?.browseId?.startsWith('MPRE'));
       const album = albumRun ? { id: browseOf(albumRun).browseId, title: albumRun.text } : null;
-      items.push({ type: 'song', id: p.videoId, title: runsText(p.title), artists: artistsFromRuns(runs), thumbnail: (thumbs[thumbs.length - 1]?.url || ''), duration: toSeconds(runsText(p.lengthText)), album, isVideo: false });
+      const mvt = p.navigationEndpoint?.watchEndpoint?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType || '';
+      items.push({ type: 'song', id: p.videoId, title: runsText(p.title), artists: artistsFromRuns(runs), thumbnail: (thumbs[thumbs.length - 1]?.url || ''), duration: toSeconds(runsText(p.lengthText)), album, isVideo: /UGC|OMV/.test(mvt), isPodcast: /PODCAST/.test(mvt) });
       return;
     }
     if (x.nextRadioContinuationData?.continuation) continuation = x.nextRadioContinuationData.continuation;
@@ -184,8 +185,40 @@ function parseNext(json) {
   return { items, continuation };
 }
 
+/** The lyrics browse id from a "next" (watch) response: the Lyrics tab of the player page. */
+function lyricsBrowseId(json) {
+  let id = null;
+  (function walk(x) {
+    if (id || !x || typeof x !== 'object') return;
+    const b = x.tabRenderer?.endpoint?.browseEndpoint;
+    if (b?.browseId?.startsWith('MPLY')) { id = b.browseId; return; }
+    for (const k in x) walk(x[k]);
+  })(json);
+  return id;
+}
+
+/** The plain lyrics text of a lyrics browse response, or null. */
+function parseLyrics(json) {
+  let text = null;
+  (function walk(x) {
+    if (text || !x || typeof x !== 'object') return;
+    if (x.musicDescriptionShelfRenderer?.description) { text = runsText(x.musicDescriptionShelfRenderer.description); return; }
+    for (const k in x) walk(x[k]);
+  })(json);
+  return text && text.trim() ? text : null;
+}
+
+/** The language YouTube Music answers in (titles, labels): en, iw (Hebrew), yi, fr ... */
+function setLanguage(hl) { if (typeof hl === 'string' && /^[a-z]{2,3}$/.test(hl)) CLIENT.hl = hl; }
+
 // ---------- API ----------
 const api = {
+  setLanguage,
+  /** YouTube Music's own lyrics for a song (plain text), or null. */
+  lyrics: async (videoId) => {
+    const id = lyricsBrowseId(await call('next', { videoId, isAudioOnly: true }));
+    return id ? parseLyrics(await call('browse', { browseId: id })) : null;
+  },
   /** type: song | video | album | artist | playlist, or null for YouTube Music's general results. */
   search: async (query, type = null) => {
     const items = parseSearch(await call('search', type ? { query, params: FILTERS[type] } : { query }));
@@ -200,4 +233,4 @@ const api = {
   },
 };
 
-module.exports = { api, FILTERS, parseListItem, parseTwoRow, parseSearch, parseArtist, parseAlbum, parsePlaylist, parseNext, toSeconds, _call: call };
+module.exports = { api, FILTERS, lyricsBrowseId, parseLyrics, CLIENT, parseListItem, parseTwoRow, parseSearch, parseArtist, parseAlbum, parsePlaylist, parseNext, toSeconds, _call: call };

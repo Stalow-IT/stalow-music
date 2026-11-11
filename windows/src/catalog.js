@@ -25,11 +25,17 @@ function loadChannels(file = path.join(__dirname, '..', 'data', 'channels.json')
 }
 
 class Catalog {
-  constructor(list, { allowFemale = false, channels = null } = {}) {
+  constructor(list, { allowFemale = false, blockPodcasts = false, channels = null } = {}) {
     this.version = list.version;
     this.artists = list.artists;
+    this.blockPodcasts = !!blockPodcasts;
     this.channelLists = channels || { version: 0, podcasts: [], shiurim: [], videos: [] };
     this.setAllowFemale(allowFemale);
+  }
+
+  /** Content filters (Settings > Content): podcast episodes can be hidden everywhere. */
+  setFilters({ blockPodcasts } = {}) {
+    if (blockPodcasts !== undefined) this.blockPodcasts = !!blockPodcasts;
   }
 
   setAllowFemale(allow) {
@@ -53,7 +59,7 @@ class Catalog {
     return (this.channelLists[category] || []).filter((ch) => this.channels.has(ch.id))
       .filter((ch) => !q || ch.name.toLowerCase().includes(q))
       .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
-      .map((ch) => ({ type: 'artist', id: ch.id, title: ch.name, thumbnail: ch.thumbnailUrl || '', subtitle: 'Channel' }));
+      .map((ch) => ({ type: 'artist', id: ch.id, title: ch.name, thumbnail: ch.thumbnailUrl || '', isChannel: true }));
   }
 
   /** An artist page or a channel page may be opened. */
@@ -69,6 +75,7 @@ class Catalog {
 
   /** A song/video passes when ANY credited artist is approved; with no credits, the page's artist stands in. */
   songAllowed(song, fallbackArtistId = null) {
+    if (this.blockPodcasts && song && song.isPodcast) return false;
     const ids = (song.artists || []).map((a) => a.id).filter(Boolean);
     if (!ids.length) return this.canOpen(fallbackArtistId);
     return ids.some((id) => this.canOpen(id)) || this.isApprovedChannel(fallbackArtistId);
