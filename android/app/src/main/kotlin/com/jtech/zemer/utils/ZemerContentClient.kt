@@ -43,7 +43,7 @@ import java.nio.channels.UnresolvedAddressException
  *
  * The public API is unchanged so every caller ([WhitelistFetcher], [IsraeliArtistRegistry], HomeViewModel, …)
  * keeps working: the artist whitelist and its version gate come from the bundled file; the lists this app does
- * not use (podcast channels, id overrides, removals, Israeli-artist ids) are empty; features that only existed on
+ * not use (id overrides, removals, Israeli-artist ids) are empty; the approved channels come from [StalowChannels]; features that only existed on
  * the server (legal mirror, music statuses, install registration) throw, which every caller already treats as
  * "unavailable, keep the built-in/last-good data".
  *
@@ -90,12 +90,15 @@ object ZemerContentClient {
         return docs
     }
 
-    /** No podcast channels are approved in Stalow Music: a fixed version and an empty list. */
+    /**
+     * The approved channels built into the app ([StalowChannels]: Podcasts, Shiurim and Videos), served as the
+     * channel-level allow-set. Every category joins it; the category only picks the browse screen.
+     */
     @Suppress("UNUSED_PARAMETER")
-    suspend fun podcastsWhitelistVersion(firstSync: Boolean = false): Long = 1L
+    suspend fun podcastsWhitelistVersion(firstSync: Boolean = false): Long = StalowChannels.version
 
     @Suppress("UNUSED_PARAMETER")
-    suspend fun podcastsWhitelist(firstSync: Boolean = false): List<ContentPodcastDoc> = emptyList()
+    suspend fun podcastsWhitelist(firstSync: Boolean = false): List<ContentPodcastDoc> = StalowChannels.all()
 
     /** Removals are not tracked separately: an artist left out of the built-in list simply stops showing. */
     suspend fun removedArtists(): Set<String> = emptySet()

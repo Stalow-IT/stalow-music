@@ -1042,7 +1042,7 @@ fun AppearanceSettings(
                 TextButton(
                     onClick = {
                         // Build the selected items string
-                        val selectedScreens = listOfNotNull("home", "artists", "podcasts".takeIf { !blockPodcasts }, "kid_zone", "search", "library")
+                        val selectedScreens = listOfNotNull("home", "artists", "podcasts".takeIf { !blockPodcasts }, "shiurim", "videos", "kid_zone", "search", "library")
                             .filter { it in currentSelectedItems }
                             .joinToString(",")
                         onBottomNavigationItemsChange(selectedScreens)
@@ -1065,6 +1065,8 @@ fun AppearanceSettings(
                 "home" to stringResource(R.string.home),
                 "artists" to stringResource(R.string.artists),
                 ("podcasts" to stringResource(R.string.podcasts)).takeIf { !blockPodcasts },
+                "shiurim" to stringResource(R.string.shiurim),
+                "videos" to stringResource(R.string.videos),
                 "kid_zone" to stringResource(R.string.kid_zone),
                 "search" to stringResource(R.string.search),
                 "library" to stringResource(R.string.filter_library)

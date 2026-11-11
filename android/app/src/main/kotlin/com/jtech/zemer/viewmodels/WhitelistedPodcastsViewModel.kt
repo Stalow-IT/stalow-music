@@ -51,6 +51,9 @@ constructor(
             ContentFilterState.state,
         ) { podcasts: List<PodcastWhitelistEntity>, query, filters ->
             podcasts
+                // Stalow Music: the allow-set also holds the Shiurim and Videos channels; this grid lists
+                // only the ones approved as podcasts.
+                .filter { it.channelId in com.jtech.zemer.utils.StalowChannels.ids(com.jtech.zemer.utils.StalowChannels.Category.PODCASTS) }
                 // Female gate: hide a wholly-female host channel when female filtering is on, matching the
                 // server, the offline snapshot, and the artist browse. This browse grid reads the mirror
                 // whitelist directly, so it is the one podcast discovery surface with no server filter in

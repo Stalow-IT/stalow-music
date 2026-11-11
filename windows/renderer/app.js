@@ -253,7 +253,7 @@ function cards(items) {
     class: 'card' + (it.type === 'artist' ? ' round' : ''),
     onclick: () => open(it),
   }, img(it.thumbnail, it.title), el('div', { class: 't ellipsis', text: it.title }),
-  el('div', { class: 's muted ellipsis', text: it.type === 'artist' ? 'Artist' : it.type === 'album' ? [artistNames(it), it.year].filter(Boolean).join(' · ') || 'Album' : it.type === 'playlist' ? 'Playlist' : artistNames(it) }))));
+  el('div', { class: 's muted ellipsis', text: it.subtitle ? it.subtitle : it.type === 'artist' ? 'Artist' : it.type === 'album' ? [artistNames(it), it.year].filter(Boolean).join(' · ') || 'Album' : it.type === 'playlist' ? 'Playlist' : artistNames(it) }))));
 }
 function open(it) {
   // pass the card's picture along, used when the page itself has none
@@ -264,6 +264,17 @@ function open(it) {
 }
 
 // ---------- views ----------
+/** One category of approved channels (Podcasts, Shiurim or Videos); a card opens the channel's page. */
+async function channelsView(category, title) {
+  const all = await stalow.channels(category, '');
+  const filter = el('input', { class: 'searchbox', type: 'search', placeholder: `Filter ${all.length} ${title.toLowerCase()} channels` });
+  const list = el('div');
+  const show = (items) => list.replaceChildren(items.length ? cards(items) : el('div', { class: 'status', text: 'No channels match.' }));
+  filter.addEventListener('input', () => { const q = filter.value.trim().toLowerCase(); show(all.filter((c) => c.title.toLowerCase().includes(q))); });
+  view.replaceChildren(el('h1', { text: title }), filter, list);
+  show(all);
+}
+
 const views = {
   async home() {
     view.replaceChildren(el('h1', { text: 'Welcome' }), el('div', { class: 'status', text: 'Loading…' }));
@@ -312,12 +323,15 @@ const views = {
       el('div', { class: 'letters' }, letters.map((L) => el('button', { text: L, onclick: () => show(all.filter((a) => (a.title[0] || '#').toUpperCase() === L)) }))), list);
     show(all);
   },
+  podcasts() { return channelsView('podcasts', 'Podcasts'); },
+  shiurim() { return channelsView('shiurim', 'Shiurim'); },
+  videos() { return channelsView('videos', 'Videos'); },
   async artist(arg) {
     const id = typeof arg === 'string' ? arg : arg.id;
     status('Loading…');
     const p = await stalow.artist(id);
     if (p.artist && !p.artist.thumbnail && arg.thumbnail) p.artist.thumbnail = arg.thumbnail;
-    if (p.notApproved) return status('This artist is not in the approved list.');
+    if (p.notApproved) return status('This artist or channel is not in the approved list.');
     const songs = p.sections.flatMap((s) => s.items).filter((x) => x.type === 'song');
     view.replaceChildren(
       el('div', { class: 'head round' }, img(p.artist.thumbnail, p.artist.title), el('div', {}, el('h1', { text: p.artist.title }),

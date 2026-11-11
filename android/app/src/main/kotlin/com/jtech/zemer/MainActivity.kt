@@ -828,8 +828,9 @@ class MainActivity : ComponentActivity() {
 
                         // Block Podcasts removes the Podcasts entry from EVERY nav surface: this list
                         // drives the nav drawer, the bottom bar filters below from the same flag.
-                        // Stalow Music: no podcast catalog (it lived on the original servers), so the tab is always hidden.
-                        val blockPodcastsNav = true
+                        // Stalow Music: the approved podcast channels are built in (StalowChannels), so the tab
+                        // follows the Block Podcasts setting like the original app.
+                        val (blockPodcastsNav) = rememberPreference(BlockPodcastsKey, defaultValue = false)
                         val navigationItems = remember(blockPodcastsNav) {
                             if (blockPodcastsNav) {
                                 Screens.MainScreens.filterNot { it.route == Screens.Podcasts.route }
@@ -876,6 +877,8 @@ class MainActivity : ComponentActivity() {
                                     "home" -> items.add(Screens.Home)
                                     "artists" -> items.add(Screens.Artists)
                                     "podcasts" -> if (!blockPodcastsNav) items.add(Screens.Podcasts)
+                                    "shiurim" -> items.add(Screens.Shiurim)
+                                    "videos" -> items.add(Screens.Videos)
                                     "kid_zone" -> items.add(Screens.KidZone)
                                     "search" -> items.add(Screens.Search)
                                     "library" -> items.add(Screens.Library)
@@ -1010,6 +1013,8 @@ class MainActivity : ComponentActivity() {
                                 Screens.Home.route,
                                 Screens.Artists.route,
                                 Screens.Podcasts.route,
+                                Screens.Shiurim.route,
+                                Screens.Videos.route,
                                 Screens.KidZone.route,
                                 Screens.Search.route,
                                 Screens.Library.route,
@@ -1269,6 +1274,8 @@ class MainActivity : ComponentActivity() {
                             Screens.Home.route -> R.string.home
                             Screens.Artists.route -> R.string.artists
                             Screens.Podcasts.route -> R.string.podcasts
+                            Screens.Shiurim.route -> R.string.shiurim
+                            Screens.Videos.route -> R.string.videos
                             Screens.KidZone.route -> R.string.kid_zone
                             Screens.Search.route -> R.string.search
                             Screens.Library.route -> R.string.filter_library
