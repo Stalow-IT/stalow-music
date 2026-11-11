@@ -83,6 +83,28 @@ function parseListItem(r, ctx = {}) {
   };
 }
 
+/** "26 min", "1 hr 5 min", "45 sec" -> seconds (podcast episodes give their length in words). */
+function wordsToSeconds(text) {
+  const t = String(text || '');
+  if (DURATION.test(t.trim())) return toSeconds(t.trim());
+  let n = 0; let any = false;
+  for (const [, v, u] of t.matchAll(/(\d+)\s*(hr|hour|min|sec)/gi)) { any = true; n += Number(v) * (/^h/i.test(u) ? 3600 : /^m/i.test(u) ? 60 : 1); }
+  return any ? n : null;
+}
+
+/** One podcast episode row (channel pages' "Latest episodes", podcast show pages). */
+function parseMultiRow(r, ctx = {}) {
+  const videoId = r.onTap?.watchEndpoint?.videoId
+    || r.overlay?.musicItemThumbnailOverlayRenderer?.content?.musicPlayButtonRenderer?.playNavigationEndpoint?.watchEndpoint?.videoId;
+  const title = runsText(r.title);
+  if (!videoId || !title) return null;
+  let artists = artistsFromRuns(r.subtitle?.runs);
+  if (!artists.length && ctx.artists) artists = ctx.artists;
+  const p = r.playbackProgress?.musicPlaybackProgressRenderer;
+  const dur = runsText(p?.durationText).replace(/[•\s]+/, ' ').trim();
+  return { type: 'song', id: videoId, title, artists, thumbnail: bestThumb(r.thumbnail) || ctx.thumbnail || '', album: null, duration: wordsToSeconds(dur), isVideo: false, isPodcast: true };
+}
+
 /** One carousel card (artist page albums/singles/videos). */
 function parseTwoRow(r) {
   const title = runsText(r.title);
@@ -97,6 +119,7 @@ function parseTwoRow(r) {
   if (/ALBUM/.test(pt)) return { type: 'album', id: b.browseId, title, artists: artistsFromRuns(subRuns), year: subRuns.map((x) => x.text).find((t) => /^\d{4}$/.test(t)) || null, thumbnail };
   if (/ARTIST|USER_CHANNEL/.test(pt)) return { type: 'artist', id: b.browseId, title, thumbnail };
   if (/PLAYLIST/.test(pt)) return { type: 'playlist', id: b.browseId.replace(/^VL/, ''), title, author: artistsFromRuns(subRuns)[0] || null, thumbnail };
+  if (/PODCAST_SHOW/.test(pt) && /^MPSP/.test(b.browseId)) return { type: 'playlist', id: b.browseId, title, author: artistsFromRuns(subRuns)[0] || null, thumbnail, isPodcast: true };
   return null;
 }
 
@@ -107,6 +130,7 @@ function collectListItems(json, ctx) {
     if (Array.isArray(x)) return x.forEach(walk);
     if (!x || typeof x !== 'object') return;
     if (x.musicResponsiveListItemRenderer) { const p = parseListItem(x.musicResponsiveListItemRenderer, ctx); if (p) out.push(p); return; }
+    if (x.musicMultiRowListItemRenderer) { const p = parseMultiRow(x.musicMultiRowListItemRenderer, ctx); if (p) out.push(p); return; }
     for (const k in x) walk(x[k]);
   })(json);
   return out;
@@ -125,8 +149,10 @@ function parseArtist(json, id) {
       sections.push({ title: runsText(c.musicShelfRenderer.title) || 'Songs', items });
     } else if (c.musicCarouselShelfRenderer) {
       const s = c.musicCarouselShelfRenderer;
+      const ctx = { artists: [{ id, name: artist.title }] };
       const items = (s.contents || []).map((x) => (x.musicTwoRowItemRenderer && parseTwoRow(x.musicTwoRowItemRenderer))
-        || (x.musicResponsiveListItemRenderer && parseListItem(x.musicResponsiveListItemRenderer, { artists: [{ id, name: artist.title }] }))).filter(Boolean);
+        || (x.musicResponsiveListItemRenderer && parseListItem(x.musicResponsiveListItemRenderer, ctx))
+        || (x.musicMultiRowListItemRenderer && parseMultiRow(x.musicMultiRowListItemRenderer, ctx))).filter(Boolean);
       sections.push({ title: runsText(s.header?.musicCarouselShelfBasicHeaderRenderer?.title), items });
     }
   }
@@ -226,11 +252,20 @@ const api = {
   },
   artist: async (id) => parseArtist(await call('browse', { browseId: id }), id),
   album: async (id) => parseAlbum(await call('browse', { browseId: id }), id),
-  playlist: async (id) => parsePlaylist(await call('browse', { browseId: 'VL' + id.replace(/^VL/, '') }), id.replace(/^VL/, '')),
+  playlist: async (id) => {
+    if (/^MPSP/.test(id)) { // a podcast show: its episodes, by the show's channel
+      const page = parsePlaylist(await call('browse', { browseId: id }), id);
+      const by = page.playlist.author ? [page.playlist.author] : [];
+      page.songs = page.songs.map((s) => (s.artists && s.artists.length ? s : { ...s, artists: by }));
+      page.playlist.isPodcast = true;
+      return page;
+    }
+    return parsePlaylist(await call('browse', { browseId: 'VL' + id.replace(/^VL/, '') }), id.replace(/^VL/, ''));
+  },
   radio: async (videoId, continuation) => {
     const body = continuation ? { continuation } : { videoId, playlistId: 'RDAMVM' + videoId, isAudioOnly: true, enablePersistentPlaylistPanel: true, tunerSettingValue: 'AUTOMIX_SETTING_NORMAL' };
     return parseNext(await call('next', body));
   },
 };
 
-module.exports = { api, FILTERS, lyricsBrowseId, parseLyrics, CLIENT, parseListItem, parseTwoRow, parseSearch, parseArtist, parseAlbum, parsePlaylist, parseNext, toSeconds, _call: call };
+module.exports = { api, FILTERS, lyricsBrowseId, parseLyrics, CLIENT, parseListItem, parseTwoRow, parseMultiRow, wordsToSeconds, parseSearch, parseArtist, parseAlbum, parsePlaylist, parseNext, toSeconds, _call: call };

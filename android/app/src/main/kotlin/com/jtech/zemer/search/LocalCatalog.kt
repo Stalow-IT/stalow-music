@@ -168,11 +168,25 @@ class LocalCatalog(private val database: MusicDatabase) {
     suspend fun channel(id: String): ArtistPage? {
         if (!approvedChannelPasses(listOf(id), config)) return null
         val page = YouTube.artist(id).getOrElse { throw it.asIo("channel") }
-        val sections = page.sections.mapNotNull { section ->
+        // Podcast channels: "Latest episodes" and "Podcasts" (shows), which the artist page reader skips.
+        val podcastSections = YouTube.channelPodcastSections(id, page.artist.title).getOrNull().orEmpty()
+            .filter { ps -> page.sections.none { it.title == ps.title } }
+            .map { com.metrolist.innertube.pages.ArtistSection(title = it.title, items = it.items, moreEndpoint = null) }
+        val sections = (podcastSections + page.sections).mapNotNull { section ->
             val items = section.items.filterWhitelisted(database, config, fallbackArtistId = id)
             if (items.isEmpty()) null else section.copy(items = items)
         }
         return page.copy(sections = sections)
+    }
+
+    /** A podcast show by an approved channel, with its first episodes; null when the show's channel is not approved. */
+    suspend fun podcastShow(id: String): com.metrolist.innertube.pages.PodcastPage? {
+        val page = YouTube.podcastShow(id).getOrElse { throw it.asIo("podcast") }
+        val channelId = page.podcast.channelId ?: return null
+        if (!approvedChannelPasses(listOf(channelId), config)) return null
+        val episodes = page.episodes.filterWhitelisted(database, config, fallbackArtistId = channelId)
+            .filterIsInstance<com.metrolist.innertube.models.EpisodeItem>()
+        return page.copy(episodes = episodes, continuation = null)
     }
 
     /** An album with only approved artists' songs; null when the album has none. */

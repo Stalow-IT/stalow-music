@@ -839,6 +839,16 @@ class MusicService :
             }
         }
 
+        // Sync with your PC: what is playing, every 10 s while playing (also when the persistent queue is off)
+        scope.launch {
+            while (isActive) {
+                delay(10.seconds)
+                if (player.isPlaying && currentQueue !is StationQueue) runCatching {
+                    com.jtech.zemer.pcsync.PcSyncNowPlaying.update(player.mediaItems.mapNotNull { it.metadata }, player.currentMediaItemIndex, player.currentPosition)
+                }
+            }
+        }
+
         // Save queue more frequently when playing to ensure state is preserved
         scope.launch {
             while (isActive) {
@@ -3074,6 +3084,8 @@ class MusicService :
             mediaItemIndex = player.currentMediaItemIndex,
             position = player.currentPosition
         )
+        // Sync with your PC: what is playing, for "Continue from your phone" there (cheap; no network here)
+        runCatching { com.jtech.zemer.pcsync.PcSyncNowPlaying.update(persistQueue.items, persistQueue.mediaItemIndex, persistQueue.position) }
 
         // Save player state
         val persistPlayerState = PersistPlayerState(

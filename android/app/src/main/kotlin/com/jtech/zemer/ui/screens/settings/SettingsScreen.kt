@@ -134,6 +134,14 @@ fun SettingsScreen(
             route = "settings/storage"
         ),
         SettingItem(
+            id = "pc_sync",
+            title = stringResource(R.string.sync_with_pc),
+            description = stringResource(R.string.sync_with_pc_desc),
+            icon = R.drawable.sync,
+            section = stringResource(R.string.settings_section_storage),
+            route = "settings/pc_sync"
+        ),
+        SettingItem(
             id = "backup",
             title = stringResource(R.string.backup_restore),
             description = stringResource(R.string.settings_desc_backup),

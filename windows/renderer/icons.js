@@ -29,6 +29,8 @@ const ICON_PATHS = {
   back: ['M15 5 8 12l7 7'],
   chevron: ['m9 6 6 6-6 6'],
   close: ['M6 6l12 12M18 6 6 18'],
+  heart: ['M12 20s-7-4.2-9-8.5A4.9 4.9 0 0 1 12 6a4.9 4.9 0 0 1 9 5.5C19 15.8 12 20 12 20z'],
+  sync: ['M20 7h-9a6 6 0 0 0-6 6', 'm17 4 3 3-3 3', 'M4 17h9a6 6 0 0 0 6-6', 'm7 20-3-3 3-3'],
 };
 
 /** An SVG icon element (stroke icons; "fill:" paths are filled, "circle:cx,cy,r" draws a circle). */

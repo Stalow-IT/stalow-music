@@ -80,6 +80,9 @@ class App : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var databaseLazy: dagger.Lazy<MusicDatabase>
 
+    @Inject
+    lateinit var pcSync: com.jtech.zemer.pcsync.PcSync
+
     override fun onCreate() {
         super.onCreate()
         // before any request to a Zemer server is signed (the crash reporter's uploads included)
@@ -124,6 +127,9 @@ class App : Application(), SingletonImageLoader.Factory {
             delay(5000)
             runCatching { offlineSubsetSyncer.maybeSync() }
         }
+
+        // Settings > Sync with your PC: syncs on start, every minute and after changes (only once a sync code is set).
+        runCatching { pcSync.start() }
 
         // This install's own signing key (stored, or registered once per start); the version key until then.
         applicationScope.launch(Dispatchers.IO) { InstallRegistration.ensure(this@App) }

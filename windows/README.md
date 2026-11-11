@@ -41,6 +41,15 @@ Settings are the Android app's settings that make sense on a computer, with the 
 - Texts are translated with `python3 scripts/make-i18n.py <android app>/app/src/main/res`, which takes the
   Android app's Hebrew and adds the Windows-only texts; it writes `renderer/i18n.js`.
 
+## Downloads
+
+The web player gives no song file, so each song is recorded while it plays once from the start to the end.
+`src/download-manager.js` does this in the background: every song gets its own hidden, silent YouTube Music
+player, up to three at once, whatever is playing in the app. The sound comes through the narrow bridge in
+`src/player-preload.js`, which accepts data only from that song's own player. `src/downloads.js` saves it to
+`Music\Stalow Music` and lists it in `downloads.json`; the waiting list is kept in `download-queue.json`.
+A downloaded song plays from its file, also without internet.
+
 ## Changing the artist list
 
 Edit the list in the Android project, raise its `"version"`, then copy the same file to `data/artists.json`.

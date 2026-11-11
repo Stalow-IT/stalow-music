@@ -160,7 +160,8 @@ class ZemerSearchRepository @Inject constructor(
     suspend fun kidZonePodcasts(options: ZemerSearchOptions): List<PodcastItem>? = emptyList()
 
     @Suppress("UNUSED_PARAMETER")
-    suspend fun podcast(id: String, offset: Int, options: ZemerSearchOptions): PodcastPage? = null
+    suspend fun podcast(id: String, offset: Int, options: ZemerSearchOptions): PodcastPage? =
+        if (offset > 0) null else catalog.podcastShow(id)
 
     @Suppress("UNUSED_PARAMETER")
     suspend fun podcastChannel(id: String, options: ZemerSearchOptions): ZemerResultMapper.PodcastChannelPage? =

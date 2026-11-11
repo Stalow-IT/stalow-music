@@ -10,6 +10,7 @@ const CATEGORIES = [
   ['content', 'content', 'content', 'content_desc'],
   ['privacy', 'privacy', 'privacy', 'privacy_desc'],
   ['storage', 'storage', 'storage', 'storage_desc'],
+  ['sync', 'sync', 'sync_title', 'sync_desc'],
   ['backup', 'backup', 'backup_restore', 'backup_restore_desc'],
   ['account', 'account', 'account', 'account_desc'],
   ['about', 'about', 'about', 'about_desc'],
@@ -118,6 +119,8 @@ const PAGES = {
       group(t('song_cache'),
         select('maxCacheMB', t('max_cache_size'), t('max_cache_size_desc'), [128, 256, 512, 1024, 2048, 4096].map((v) => [v, v >= 1024 ? `${v / 1024} GB` : `${v} MB`])),
         button(t('clear_cache'), t('cache_in_use', mb(size)), t('clear'), async () => { await stalow.clearCache(); PAGES.storage(); }, { danger: true })),
+      group(t('downloads'),
+        button(t('downloads_folder'), t('downloads_folder_desc'), t('open_folder'), () => stalow.openDownloadsFolder())),
       group(t('keep_listening'),
         button(t('clear_recently_played'), t('clear_recently_played_desc'), t('clear'), confirmThen(t('clear_listen_history_confirm'), async () => { await clearHistory(); PAGES.storage(); }), { danger: true })));
   },
@@ -134,6 +137,36 @@ const PAGES = {
           if (r && r.restored) { alert(t('restore_success')); await startApp(); } // eslint-disable-line no-undef
         } catch (e) { alert(t('restore_failed') + ': ' + e.message); }
       }))),
+
+  sync: async () => {
+    const info = await stalow.syncInfo().catch(() => ({ state: 'off' }));
+    syncInfo = info; // eslint-disable-line no-undef
+    const when = info.lastSync ? new Date(info.lastSync).toLocaleString() : t('never');
+    if (!info.code) {
+      const input = el('input', { class: 'searchbox', placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX', 'aria-label': t('sync_code'), maxlength: '35' });
+      return page('sync_title',
+        group('', el('div', { class: 'item block' }, el('div', {}, el('div', { class: 'it', text: t('sync_title') }), el('div', { class: 'id', text: t('sync_explain') })))),
+        group(t('sync_first_device'),
+          button(t('sync_create'), t('sync_create_desc'), t('sync_create_button'), async () => { await stalow.syncCreate(); PAGES.sync(); })),
+        group(t('sync_other_device'),
+          el('div', { class: 'item block' },
+            el('div', {}, el('div', { class: 'it', text: t('sync_enter') }), el('div', { class: 'id', text: t('sync_enter_desc') })),
+            el('div', { class: 'actions' }, input, el('button', { class: 'btn', text: t('sync_join'), onclick: async () => {
+              try { await stalow.syncJoin(input.value); PAGES.sync(); } catch (e) { alert(e.message); }
+            } })))));
+    }
+    page('sync_title',
+      group(t('sync_code'),
+        el('div', { class: 'item block' },
+          el('div', {}, el('div', { class: 'it', text: t('sync_your_code') }), el('div', { class: 'id', text: t('sync_your_code_desc') })),
+          el('div', { class: 'actions' }, el('div', { class: 'sync-code mono', text: info.code }),
+            el('button', { class: 'btn secondary', text: t('copy'), onclick: () => navigator.clipboard.writeText(info.code).then(() => alert(t('copied'))) })))),
+      group(t('sync_status'),
+        button(info.state === 'error' ? t('sync_error', info.error) : info.state === 'syncing' ? t('syncing') : t('sync_last', when), t('sync_what'), t('sync_now'), async () => { await stalow.syncNow(); PAGES.sync(); })),
+      group('',
+        button(t('sync_stop'), t('sync_stop_desc'), t('sync_stop_button'), confirmThen(t('sync_stop_confirm'), async () => { await stalow.syncLeave(false); PAGES.sync(); })),
+        button(t('sync_erase'), t('sync_erase_desc'), t('sync_erase_button'), confirmThen(t('sync_erase_confirm'), async () => { await stalow.syncLeave(true); PAGES.sync(); }), { danger: true })));
+  },
 
   account: () => page('account',
     group(t('youtube_account'),
