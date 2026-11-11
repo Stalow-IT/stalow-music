@@ -16,6 +16,51 @@ const PAGE_SCRIPT = String.raw`
   const report = (o) => console.log('${STATUS_PREFIX}' + JSON.stringify(o));
   const video = () => document.querySelector('video');
   let expected = null, wantPlaying = true, endedSent = false, volume = 1;
+  // Settings > Player & audio. Normalisation and skip silence run through Web Audio, which works on YouTube's
+  // own (blob:) media streams; on anything else the sound is left untouched rather than risk silence.
+  let opts = { normalize: false, skipSilence: false, quality: 'auto', blockVideo: false };
+  let graph = null, silentMs = 0, speeding = false;
+  const ensureGraph = (v) => {
+    if (graph && graph.v === v) return graph;
+    if (!String(v.currentSrc || v.src || '').startsWith('blob:')) return null;
+    try {
+      const ctx = new AudioContext();
+      const src = ctx.createMediaElementSource(v);
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -24; comp.knee.value = 24; comp.ratio.value = 4; comp.attack.value = 0.005; comp.release.value = 0.25;
+      const makeup = ctx.createGain(); makeup.gain.value = 1.35;
+      const dry = ctx.createGain(), wet = ctx.createGain();
+      const analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
+      src.connect(dry); dry.connect(ctx.destination);
+      src.connect(comp); comp.connect(makeup); makeup.connect(wet); wet.connect(ctx.destination);
+      src.connect(analyser);
+      graph = { v, ctx, dry, wet, analyser, buf: new Float32Array(2048) };
+    } catch (e) { graph = { v, failed: true }; }
+    applyGraph();
+    return graph;
+  };
+  const applyGraph = () => {
+    if (!graph || graph.failed) return;
+    graph.dry.gain.value = opts.normalize ? 0 : 1;
+    graph.wet.gain.value = opts.normalize ? 1 : 0;
+    if (graph.ctx.state === 'suspended') graph.ctx.resume().catch(() => {});
+  };
+  const level = () => {
+    if (!graph || graph.failed) return 1;
+    graph.analyser.getFloatTimeDomainData(graph.buf);
+    let sum = 0; for (let i = 0; i < graph.buf.length; i++) sum += graph.buf[i] * graph.buf[i];
+    return Math.sqrt(sum / graph.buf.length);
+  };
+  const applyQuality = () => {
+    const p = document.getElementById('movie_player');
+    const q = opts.quality === 'low' ? 'tiny' : opts.quality === 'high' ? 'hd1080' : 'auto';
+    try { if (p && p.setPlaybackQualityRange) p.setPlaybackQualityRange(q, q); } catch (e) {}
+  };
+  const applyVideoBlock = () => {
+    let st = document.getElementById('__stalow_block');
+    if (opts.blockVideo && !st) { st = document.createElement('style'); st.id = '__stalow_block'; st.textContent = 'video{visibility:hidden!important}'; document.documentElement.appendChild(st); }
+    if (!opts.blockVideo && st) st.remove();
+  };
   const vidInUrl = () => new URLSearchParams(location.search).get('v');
   const isAd = () => !!document.querySelector('#movie_player.ad-showing, .ytp-ad-player-overlay, .ytp-ad-module .ytp-ad-text');
   const setHandlers = () => {
@@ -33,6 +78,7 @@ const PAGE_SCRIPT = String.raw`
     pause() { wantPlaying = false; const v = video(); if (v) v.pause(); },
     seek(s) { const v = video(); if (v && isFinite(s)) v.currentTime = s; },
     volume(x) { volume = Math.max(0, Math.min(1, x)); const v = video(); if (v && !isAd()) v.volume = volume; },
+    audio(o) { opts = Object.assign(opts, o || {}); applyGraph(); applyQuality(); applyVideoBlock(); },
   };
   setInterval(() => {
     if (/^consent\./.test(location.hostname)) {
@@ -55,6 +101,14 @@ const PAGE_SCRIPT = String.raw`
     }
     if (v.muted) v.muted = false;
     if (Math.abs(v.volume - volume) > 0.01) v.volume = volume;
+    if (opts.normalize || opts.skipSilence) ensureGraph(v);
+    applyQuality(); applyVideoBlock();
+    // Skip silence: quiet stretches (intros, gaps, long fade-outs) play fast until the music comes back.
+    if (opts.skipSilence && !v.paused && v.currentTime > 0.5) {
+      silentMs = level() < 0.004 ? silentMs + 400 : 0;
+      const want = silentMs >= 800;
+      if (want !== speeding) { speeding = want; v.playbackRate = want ? 4 : 1; }
+    } else if (speeding) { speeding = false; silentMs = 0; v.playbackRate = 1; }
     // YouTube moved on to a song of its own choosing: stop it, the app picks the next song.
     if (expected && vidInUrl() && vidInUrl() !== expected) {
       v.pause();
@@ -86,6 +140,13 @@ class Player {
     this.onEvent = onEvent;
     this.win = null;
     this.current = null;
+    this.audioOpts = { normalize: false, skipSilence: false, quality: 'auto', blockVideo: false };
+  }
+
+  /** Settings > Player & audio (and Content > Block videos), applied to the current song and every next one. */
+  setAudio(o) {
+    this.audioOpts = { ...this.audioOpts, ...o };
+    this.run(`audio(${JSON.stringify(this.audioOpts)})`);
   }
 
   async init() {
@@ -128,7 +189,7 @@ class Player {
   inject() {
     if (!this.win) return;
     const id = this.current;
-    this.win.webContents.executeJavaScript(PAGE_SCRIPT + (id ? `;window.__stalow.expect(${JSON.stringify(id)});` : ''), true).catch(() => {});
+    this.win.webContents.executeJavaScript(PAGE_SCRIPT + `;window.__stalow.audio(${JSON.stringify(this.audioOpts)});` + (id ? `;window.__stalow.expect(${JSON.stringify(id)});` : ''), true).catch(() => {});
   }
 
   async play(videoId) {

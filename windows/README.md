@@ -28,6 +28,19 @@ Needs Node.js 22 (and Wine when building on Linux):
    Installed copies download the parts in the background, check them, and offer "Restart to update".
    (The installer is split because the website cannot hold one file over 100 MB.)
 
+## Settings
+
+Settings are the Android app's settings that make sense on a computer, with the same defaults
+(`src/settings.js` lists them, their defaults and the values each accepts). They are stored in
+`settings.json` in the app's data folder (`%APPDATA%/Stalow Music`), next to `history.json`,
+`search-history.json` and `session.json` (the queue). Settings > Backup and restore saves all four to one file.
+
+- Lyrics come from SimpMusic, LrcLib and YouTube Music (`src/lyrics.js`), in the order chosen in Settings.
+- Audio normalisation, skip silence, audio quality and Block videos run inside the hidden YouTube Music
+  player (`src/player.js`).
+- Texts are translated with `python3 scripts/make-i18n.py <android app>/app/src/main/res`, which takes the
+  Android app's Hebrew and adds the Windows-only texts; it writes `renderer/i18n.js`.
+
 ## Changing the artist list
 
 Edit the list in the Android project, raise its `"version"`, then copy the same file to `data/artists.json`.
