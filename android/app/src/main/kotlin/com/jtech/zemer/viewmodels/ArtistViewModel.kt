@@ -53,6 +53,27 @@ class ArtistViewModel @Inject constructor(
     var artistPage by mutableStateOf<ArtistPage?>(null)
     var isLoading by mutableStateOf(true)
 
+    // A shelf's arrow ("see all"): the full list, by shelf title (null while loading; absent before).
+    var shelfAll by mutableStateOf<Map<String, List<com.metrolist.innertube.models.YTItem>?>>(emptyMap())
+        private set
+
+    /** Loads the full list behind a shelf's arrow (YouTube Music gives the page only the first ~10). */
+    fun loadShelfAll(title: String) {
+        if (shelfAll.containsKey(title)) return
+        val page = artistPage ?: return
+        val section = page.sections.firstOrNull { it.title == title } ?: return
+        val more = section.moreEndpoint ?: run { shelfAll = shelfAll + (title to section.items); return }
+        shelfAll = shelfAll + (title to null)
+        viewModelScope.launch {
+            val all = runCatching { zemerRepository.shelfAll(artistId, page.artist.title, more) }
+                .onFailure { if (it is java.util.concurrent.CancellationException) throw it }
+                .getOrNull()
+            // the full list, plus anything the page had that it lacks (never fewer than the page itself)
+            val merged = (all.orEmpty() + section.items).distinctBy { it.id }
+            shelfAll = shelfAll + (title to merged)
+        }
+    }
+
     // Channel-wide episodes paging (`/podcast-channel?offset=`, podcast channels only): the next page
     // cursor from the last response (null = no more pages / pre-paging server / offline snapshot) and
     // a single-flight guard so the see-all's near-end trigger can't double-append a page.

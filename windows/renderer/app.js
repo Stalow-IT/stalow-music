@@ -672,9 +672,25 @@ const views = {
       ...p.sections.flatMap((s) => {
         const sSongs = s.items.filter((x) => x.type === 'song');
         const others = s.items.filter((x) => x.type !== 'song');
-        return [el('h2', { text: s.title || t('more') }), sSongs.length ? songRows(sSongs) : '', others.length ? cards(others) : ''];
+        const seeAll = s.more && s.items.length >= 6 ? () => go('shelf', { id, name: p.artist.title, title: s.title, more: s.more }) : null;
+        return [sectionHead(s.title || t('more'), seeAll), sSongs.length ? songRows(sSongs) : '', others.length ? cards(others) : ''];
       }),
       p.sections.length ? '' : el('div', { class: 'status', text: t('no_songs_for_artist') }));
+  },
+  /** "See all" for one shelf of an artist or channel page: every video, episode, song, album or playlist. */
+  async shelf(arg) {
+    status(t('loading'));
+    const r = await stalow.shelf(arg.id, arg.name, arg.more);
+    if (r.notApproved) return status(t('artist_not_approved'));
+    const songs = r.items.filter((x) => x.type === 'song');
+    const others = r.items.filter((x) => x.type !== 'song');
+    view.replaceChildren(
+      el('div', { class: 'overline', text: arg.name || '' }), el('h1', { text: arg.title || t('more') }),
+      songs.length ? el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(songs, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(songs), 0) }, icon('shuffle'), t('shuffle')),
+        el('button', { class: 'btn secondary', onclick: () => downloadSongs(songs) }, icon('backup'), t('download_all'))) : '',
+      songs.length ? songRows(songs) : '', others.length ? cards(others) : '',
+      r.items.length ? '' : el('div', { class: 'status', text: t('no_songs_for_artist') }));
   },
   async album(arg) {
     const id = typeof arg === 'string' ? arg : arg.id;

@@ -104,6 +104,14 @@ const handlers = {
   'catalog:artists': async (text) => catalog.findArtists(text),
   'catalog:channels': async ({ category, text } = {}) => catalog.channelList(category, text),
   'catalog:home': async (recentArtistIds) => ({ artists: catalog.homeArtists(recentArtistIds, 18) }),
+  // the full list behind a shelf's "See all" on an artist or channel page
+  'catalog:shelf': async ({ id, name, more } = {}) => {
+    if (typeof id !== 'string' || !catalog.canOpen(id)) return { notApproved: true };
+    if (!more || typeof more.browseId !== 'string' || !/^[\w-]{2,80}$/.test(more.browseId) || (more.params !== undefined && (typeof more.params !== 'string' || more.params.length > 2000))) throw new Error('Bad link');
+    const items = catalog.filterItems(await api.shelf({ browseId: more.browseId, params: more.params }, { artists: [{ id, name: String(name || '') }] }), id);
+    const full = new Set((await keepFullPlaylists(api, catalog, items.filter((x) => x.type === 'playlist'), true)).map((p) => p.id));
+    return { items: items.filter((x) => x.type !== 'playlist' || full.has(x.id)) };
+  },
   'catalog:artist': async (id) => {
     if (!catalog.canOpen(id)) return { notApproved: true };
     const page = await api.artist(id);
