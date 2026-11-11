@@ -31,6 +31,7 @@ function applySetting(key) {
   if (key === 'historyDays') pruneHistory();
   if (key === 'persistentQueue') { if (S.persistentQueue) saveSession(Number($('#seek').value)); else stalow.saveSession({ queue: [] }).catch(() => {}); }
   if (key === 'shuffle' || key === 'repeat' || !key) renderToggles();
+  if ((key === 'shuffle' || key === 'repeat') && currentView && currentView[0] === 'nowplaying') views.nowplaying();
 }
 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { if (S.theme === 'system') applySetting('theme'); });
 
@@ -119,6 +120,93 @@ function applyShuffleToQueue() {
   renderQueueIfOpen();
 }
 
+// ---------- downloaded songs play from their file (also without internet) ----------
+let downloaded = new Map(); // id -> download entry (with a file: url)
+let downloading = null; // { id } while the playing song is being saved
+async function loadDownloads() {
+  try { downloaded = new Map((await stalow.downloads()).map((d) => [d.id, d])); } catch { downloaded = new Map(); }
+}
+const localAudio = new Audio();
+localAudio.preload = 'auto';
+let local = false; // true while the current song plays from its downloaded file
+/** One way to control playback, whether the song plays in YouTube Music's player or from a downloaded file. */
+const P = {
+  async play(id) {
+    const d = downloaded.get(id);
+    if (d) {
+      local = true;
+      stalow.pause().catch(() => {});
+      localAudio.src = d.url;
+      localAudio.volume = Number($('#vol').value);
+      return localAudio.play();
+    }
+    if (local) { local = false; localAudio.pause(); localAudio.removeAttribute('src'); stalow.setPlaying(false).catch(() => {}); }
+    return stalow.play(id);
+  },
+  pause() { if (local) { localAudio.pause(); return Promise.resolve(); } return stalow.pause(); },
+  resume() { if (local) return localAudio.play().catch(() => {}); return stalow.resume(); },
+  seek(sec) { if (local) { localAudio.currentTime = sec; state.time = sec; return Promise.resolve(); } return stalow.seek(sec); },
+  volume(v) { localAudio.volume = v; return stalow.volume(v); },
+};
+function emitLocal(kind) {
+  const cur = state.queue[state.index];
+  if (!local || !cur) return;
+  if (kind === 'error') { downloaded.delete(cur.id); local = false; return P.play(cur.id); } // the file is gone: play it online
+  handlePlayerEvent({ state: kind, time: localAudio.currentTime, duration: Number.isFinite(localAudio.duration) ? localAudio.duration : 0, id: cur.id });
+  if (kind === 'playing' || kind === 'paused' || kind === 'ended') stalow.setPlaying(kind === 'playing').catch(() => {});
+}
+localAudio.addEventListener('timeupdate', () => emitLocal(localAudio.paused ? 'paused' : 'playing'));
+localAudio.addEventListener('play', () => emitLocal('playing'));
+localAudio.addEventListener('pause', () => { if (!localAudio.ended) emitLocal('paused'); });
+localAudio.addEventListener('ended', () => emitLocal('ended'));
+localAudio.addEventListener('error', () => { if (localAudio.getAttribute('src')) emitLocal('error'); });
+
+/** Download: saves the playing song while it plays once from the start (see the Download button). */
+async function downloadCurrent() {
+  const s = state.queue[state.index];
+  if (!s || downloaded.has(s.id)) return;
+  if (state.notLoaded || local) await playAt(state.index);
+  try {
+    await stalow.download(s);
+    downloading = { id: s.id };
+  } catch (e) { downloading = null; showNotice(t('download_failed', e.message)); }
+  if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); // eslint-disable-line no-undef
+}
+async function cancelDownload() { downloading = null; await stalow.cancelDownload(); if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); } // eslint-disable-line no-undef
+stalow.onDownload(async (ev) => {
+  if (downloading && downloading.id === ev.id) downloading = null;
+  if (ev.state === 'done') { await loadDownloads(); showNotice(t('download_done')); }
+  else if (ev.state === 'failed') showNotice(t(ev.reason === 'stopped' ? 'download_stopped' : 'download_failed', ev.reason || ''));
+  if (currentView && ['nowplaying', 'downloads'].includes(currentView[0])) views[currentView[0]](currentView[1]);
+});
+function showNotice(text) {
+  hideNotice();
+  $('#main').prepend(el('div', { id: 'play-notice', class: 'notice' }, el('span', { text })));
+  setTimeout(hideNotice, 6000);
+}
+
+// ---------- the queue: Up next ----------
+function removeFromQueue(i) {
+  if (i === state.index || i < 0 || i >= state.queue.length) return;
+  state.queue.splice(i, 1);
+  if (i < state.index) state.index -= 1;
+  saveSession(state.time); renderQueueIfOpen();
+}
+function moveInQueue(i, d) {
+  const j = i + d;
+  if (i < 0 || j < 0 || i >= state.queue.length || j >= state.queue.length) return;
+  [state.queue[i], state.queue[j]] = [state.queue[j], state.queue[i]];
+  if (state.index === i) state.index = j; else if (state.index === j) state.index = i;
+  saveSession(state.time); renderQueueIfOpen();
+}
+function playNext(song) {
+  if (state.index < 0) return playQueue([song], 0, song.id);
+  state.queue.splice(state.index + 1, 0, song);
+  saveSession(state.time); renderQueueIfOpen();
+}
+/** Clear the queue: everything after the song that is playing goes. */
+function clearUpNext() { state.queue = state.queue.slice(0, state.index + 1); state.radio = null; saveSession(state.time); renderQueueIfOpen(); }
+
 // ---------- the queue survives a restart or an update (Settings > Persistent queue) ----------
 function saveSession(time) {
   if (!S.persistentQueue || state.index < 0 || !state.queue.length) return;
@@ -204,7 +292,7 @@ async function playAt(i) {
   // YouTube Music should start within ~25 s; if not, say so instead of waiting silently
   state.watchdog = setTimeout(() => playFailed(t('error_not_starting')), 25000);
   if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); // eslint-disable-line no-undef
-  try { await stalow.play(s.id); } catch (e) { playFailed(e.message); }
+  try { await P.play(s.id); } catch (e) { playFailed(e.message); }
   renderQueueIfOpen();
   topUpRadio();
 }
@@ -246,9 +334,9 @@ function next() {
     return topUpRadio(true);
   }
   if (S.repeat === 'all' && state.queue.length) return playAt(0);
-  stalow.pause();
+  P.pause();
 }
-function prev() { if (state.time > 3 || state.index <= 0) stalow.seek(0); else playAt(state.index - 1); }
+function prev() { if (state.time > 3 || state.index <= 0) P.seek(0); else playAt(state.index - 1); }
 
 /** Keeps a radio queue going with more approved songs (Settings > Auto load more songs). */
 async function topUpRadio(playWhenAdded = false) {
@@ -289,8 +377,14 @@ async function topUpRadio(playWhenAdded = false) {
 stalow.onPlayer((ev) => {
   if (ev.action === 'next') return next();
   if (ev.action === 'previous') return prev();
-  if (ev.action === 'play') return stalow.resume();
-  if (ev.action === 'pause') return stalow.pause();
+  if (ev.action === 'play') return P.resume();
+  if (ev.action === 'pause') return P.pause();
+  if (local) return; // a downloaded song is playing from its file; YouTube Music's player is idle
+  handlePlayerEvent(ev);
+});
+
+/** What the player reports (YouTube Music's player, or the downloaded file): the bar, the queue, history. */
+function handlePlayerEvent(ev) {
   // what the player is really doing, whichever song it reports: Pause must always be able to stop the sound
   if (ev.state === 'playing' || ev.state === 'paused') state.anyPlaying = ev.state === 'playing';
   const cur = state.queue[state.index];
@@ -306,7 +400,7 @@ stalow.onPlayer((ev) => {
     // a restored song continues where it stopped
     if (state.pendingSeek && cur && state.pendingSeek.id === cur.id && ev.state === 'playing') {
       const tm = state.pendingSeek.time; state.pendingSeek = null;
-      if (tm > 3 && (!ev.duration || tm < ev.duration - 5)) stalow.seek(tm);
+      if (tm > 3 && (!ev.duration || tm < ev.duration - 5)) P.seek(tm);
     }
     if (!state.lastSave || Date.now() - state.lastSave > 5000) { state.lastSave = Date.now(); saveSession(ev.time); }
   }
@@ -323,7 +417,7 @@ stalow.onPlayer((ev) => {
     $('#t-cur').textContent = fmt(ev.time); $('#t-dur').textContent = fmt(ev.duration);
   }
   if (typeof onPlayerTime === 'function') onPlayerTime(state.time); // eslint-disable-line no-undef
-});
+}
 
 function renderPlayButton() {
   const b = $('#btn-play');
@@ -349,7 +443,7 @@ $('#btn-play').addEventListener('click', () => {
     return;
   }
   if (state.notLoaded) return playAt(state.index); // a restored song: load it, it continues where it stopped
-  if (state.playing || state.anyPlaying) { state.anyPlaying = false; stalow.pause(); } else stalow.resume();
+  if (state.playing || state.anyPlaying) { state.anyPlaying = false; P.pause(); } else P.resume();
 });
 $('#btn-next').addEventListener('click', next);
 $('#btn-prev').addEventListener('click', prev);
@@ -360,10 +454,10 @@ $('#seek').addEventListener('input', () => { state.seeking = true; $('#t-cur').t
 $('#seek').addEventListener('change', () => {
   if (state.pendingSeek) state.pendingSeek.time = Number($('#seek').value);
   state.time = Number($('#seek').value);
-  stalow.seek(Number($('#seek').value)); state.seeking = false;
+  P.seek(Number($('#seek').value)); state.seeking = false;
 });
 window.addEventListener('beforeunload', () => saveSession(Number($('#seek').value)));
-$('#vol').addEventListener('input', () => stalow.volume(Number($('#vol').value)));
+$('#vol').addEventListener('input', () => P.volume(Number($('#vol').value)));
 
 /** Keyboard: Space plays/pauses; Left/Right seek 5 s (Settings > Progressive seek: faster when pressed repeatedly). */
 let seekStreak = { dir: 0, at: 0, n: 0 };
@@ -378,7 +472,7 @@ document.addEventListener('keydown', (e) => {
     const step = 5 * (S.progressiveSeek ? seekStreak.n : 1);
     const target = Math.max(0, Math.min((state.duration || 1e9) - 1, state.time + dir * step));
     state.time = target;
-    stalow.seek(target);
+    P.seek(target);
   }
 });
 
@@ -391,7 +485,9 @@ function songRows(songs, { onPlay } = {}) {
   el('span', { class: 'n', text: String(i + 1) }), img(s.thumbnail, s.title, { isVideo: s.isVideo }),
   el('div', { class: 'ellipsis' }, el('div', { class: 'rt ellipsis', text: s.title }), el('div', { class: 'muted ellipsis', text: artistNames(s) })),
   el('span', { class: 'd', text: s.duration ? fmt(s.duration) : '' }),
-  el('span', { class: 'add', role: 'button', title: t('add_to_queue'), text: '+ ' + t('queue'), onclick: (e) => { e.stopPropagation(); addToQueue(s); } }))));
+  el('span', { class: 'add-group' },
+    el('span', { class: 'add', role: 'button', title: t('play_next'), text: t('play_next'), onclick: (e) => { e.stopPropagation(); playNext(s); } }),
+    el('span', { class: 'add', role: 'button', title: t('add_to_queue'), text: '+ ' + t('queue'), onclick: (e) => { e.stopPropagation(); addToQueue(s); } })))));
 }
 function cards(items) {
   return el('div', { class: 'grid' }, items.map((it) => el('button', {
@@ -525,7 +621,25 @@ const views = {
   },
   async queue() {
     if (!state.queue.length) return status(t('queue_empty'));
-    view.replaceChildren(el('h1', { text: t('queue') }), songRows(state.queue, { onPlay: (i) => playAt(i) }));
+    view.replaceChildren(el('h1', { text: t('queue') }), queueList());
+  },
+  async downloads() {
+    await loadDownloads();
+    const list = [...downloaded.values()];
+    const total = list.reduce((a, d) => a + (d.size || 0), 0);
+    view.replaceChildren(
+      el('h1', { text: t('downloads') }),
+      el('p', { class: 'muted', text: t('downloads_hint') }),
+      el('div', { class: 'actions' },
+        list.length ? el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')) : '',
+        list.length ? el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle')) : '',
+        el('button', { class: 'btn secondary', text: t('open_folder'), onclick: () => stalow.openDownloadsFolder() })),
+      list.length ? el('p', { class: 'muted', text: t('downloads_count', list.length, (total / 1048576).toFixed(1)) }) : el('div', { class: 'status', text: t('downloads_empty') }),
+      list.length ? el('div', { class: 'rows' }, list.map((d, i) => el('div', { class: 'row qrow' + (state.queue[state.index] && state.queue[state.index].id === d.id ? ' playing' : '') },
+        el('span', { class: 'n', text: String(i + 1) }), img(d.thumbnail, d.title),
+        el('button', { class: 'qmain ellipsis', onclick: () => playQueue(list, i) }, el('div', { class: 'rt ellipsis', text: d.title }), el('div', { class: 'muted ellipsis', text: nowLine(d) })),
+        el('span', { class: 'd', text: d.duration ? fmt(d.duration) : '' }),
+        el('button', { class: 'icon-btn', title: t('remove_download'), 'aria-label': t('remove_download'), onclick: async () => { if (window.confirm(t('remove_download_confirm', d.title))) { await stalow.removeDownload(d.id); views.downloads(); } } }, icon('close'))))) : '');
   },
 };
 
@@ -545,9 +659,31 @@ function back() {
   const [n, a] = navHistory[navHistory.length - 1];
   go(n, a, false);
 }
+/** Up next: the queue with the playing song marked; reorder, remove, play. Used by Queue and Now playing. */
+function queueList({ compact = false } = {}) {
+  const rows = state.queue.map((s, i) => {
+    const isCur = i === state.index;
+    return el('div', { class: 'row qrow' + (isCur ? ' playing' : '') },
+      el('span', { class: 'n', text: isCur ? '▶' : String(i + 1) }), img(s.thumbnail, s.title, { isVideo: s.isVideo }),
+      el('button', { class: 'qmain ellipsis', onclick: () => playAt(i) }, el('div', { class: 'rt ellipsis', text: s.title }), el('div', { class: 'muted ellipsis', text: (downloaded.has(s.id) ? '⬇ ' : '') + artistNames(s) })),
+      compact ? '' : el('span', { class: 'd', text: s.duration ? fmt(s.duration) : '' }),
+      el('div', { class: 'qbtns' },
+        el('button', { class: 'icon-btn', title: t('move_up'), 'aria-label': t('move_up'), disabled: i === 0, onclick: () => moveInQueue(i, -1) }, icon('up')),
+        el('button', { class: 'icon-btn', title: t('move_down'), 'aria-label': t('move_down'), disabled: i === state.queue.length - 1, onclick: () => moveInQueue(i, 1) }, icon('down')),
+        el('button', { class: 'icon-btn', title: t('remove_from_queue'), 'aria-label': t('remove_from_queue'), disabled: isCur, onclick: () => removeFromQueue(i) }, icon('close'))));
+  });
+  return el('div', {},
+    el('div', { class: 'actions' }, el('button', { class: 'btn secondary', text: t('clear_up_next'), onclick: clearUpNext, disabled: state.index >= state.queue.length - 1 })),
+    el('div', { class: 'rows' }, rows));
+}
+
 /** Shows the current page again (after a setting that changes how pages look). */
 function rerender() { if (currentView && !['settingsPage', 'settings'].includes(currentView[0])) go(currentView[0], currentView[1], false); }
-function renderQueueIfOpen() { if (currentView && currentView[0] === 'queue') views.queue(); }
+function renderQueueIfOpen() {
+  if (!currentView) return;
+  if (currentView[0] === 'queue') views.queue();
+  if (currentView[0] === 'nowplaying' && typeof renderUpNext === 'function') renderUpNext(); // eslint-disable-line no-undef
+}
 
 document.querySelectorAll('.nav').forEach((b) => b.addEventListener('click', () => go(b.dataset.view)));
 $('#btn-back').addEventListener('click', back);

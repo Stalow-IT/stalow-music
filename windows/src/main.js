@@ -9,6 +9,7 @@ const { searchAll, keepFullPlaylists } = require('./search');
 const updater = require('./updater');
 const settingsSchema = require('./settings');
 const { getLyrics } = require('./lyrics');
+const { Downloads, MAX_BYTES } = require('./downloads');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -43,6 +44,22 @@ const cleanSession = (s) => {
   const r = s.radio && typeof s.radio.videoId === 'string' ? { videoId: s.radio.videoId, continuation: typeof s.radio.continuation === 'string' ? s.radio.continuation : null, started: !!s.radio.started } : null;
   return { queue, index: Math.min(Math.max(0, s.index | 0), queue.length - 1), time: Math.max(0, Number(s.time) || 0), radio: r };
 };
+
+// Downloads: songs saved to Music\Stalow Music while they play once (see downloads.js and player.js).
+let downloads = null;
+let recording = null; // { song, chunks, size } for the one song being saved
+ipcMain.on('rec:chunk', (e, id, data) => {
+  if (!recording || !player || e.sender !== player.win.webContents || id !== recording.song.id || !(data instanceof ArrayBuffer)) return;
+  recording.size += data.byteLength;
+  if (recording.size > MAX_BYTES) { player.cancelRecord(); return; }
+  recording.chunks.push(Buffer.from(data));
+});
+ipcMain.on('rec:done', (e, id, ok) => {
+  if (!recording || !player || e.sender !== player.win.webContents || id !== recording.song.id) return;
+  const r = recording; recording = null;
+  if (!ok) return send('download', { id, state: 'failed', reason: 'stopped' });
+  try { downloads.save(r.song, Buffer.concat(r.chunks)); send('download', { id, state: 'done' }); } catch (err) { send('download', { id, state: 'failed', reason: err.message }); }
+});
 
 // Settings > Storage: the cache limit is set when the app starts.
 try { app.commandLine.appendSwitch('disk-cache-size', String(readSettings().maxCacheMB * 1024 * 1024)); } catch { /* defaults */ }
@@ -148,6 +165,21 @@ const handlers = {
     if (!want || typeof want.videoId !== 'string') return null;
     return getLyrics(want, readSettings().lyricsProviders, { api });
   },
+  'download:start': async (song) => {
+    const clean = cleanSong(song);
+    if (!clean) throw new Error('Not a song');
+    if (downloads.get(clean.id)) return { already: true };
+    if (recording) player.cancelRecord();
+    recording = { song: clean, chunks: [], size: 0 };
+    const ok = await player.record(clean.id);
+    if (!ok) { recording = null; throw new Error('The song has to be playing to save it'); }
+    return { started: true };
+  },
+  'download:cancel': async () => { if (recording) { recording = null; player.cancelRecord(); } },
+  'download:list': async () => downloads.list(),
+  'download:remove': async (id) => { if (typeof id === 'string') downloads.remove(id); },
+  'download:openFolder': async () => { fs.mkdirSync(downloads.folder, { recursive: true }); await shell.openPath(downloads.folder); },
+  'app:playing': async (playing) => updateThumbar(!!playing),
   'storage:cacheSize': async () => {
     const sizes = await Promise.all([session.defaultSession, session.fromPartition('persist:ytmusic')].map((s) => s.getCacheSize().catch(() => 0)));
     return sizes.reduce((a, b) => a + b, 0);
@@ -247,6 +279,7 @@ function applySettings(s, changed = null) {
 
 app.whenReady().then(async () => {
   const startSettings = readSettings();
+  downloads = new Downloads(path.join(app.getPath('userData'), 'downloads.json'), path.join(app.getPath('music'), 'Stalow Music'));
   catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts });
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);

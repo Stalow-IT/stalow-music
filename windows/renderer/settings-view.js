@@ -118,6 +118,8 @@ const PAGES = {
       group(t('song_cache'),
         select('maxCacheMB', t('max_cache_size'), t('max_cache_size_desc'), [128, 256, 512, 1024, 2048, 4096].map((v) => [v, v >= 1024 ? `${v / 1024} GB` : `${v} MB`])),
         button(t('clear_cache'), t('cache_in_use', mb(size)), t('clear'), async () => { await stalow.clearCache(); PAGES.storage(); }, { danger: true })),
+      group(t('downloads'),
+        button(t('downloads_folder'), t('downloads_folder_desc'), t('open_folder'), () => stalow.openDownloadsFolder())),
       group(t('keep_listening'),
         button(t('clear_recently_played'), t('clear_recently_played_desc'), t('clear'), confirmThen(t('clear_listen_history_confirm'), async () => { await clearHistory(); PAGES.storage(); }), { danger: true })));
   },

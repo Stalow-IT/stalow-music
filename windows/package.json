@@ -1,7 +1,7 @@
 {
   "name": "stalow-music-desktop",
   "productName": "Stalow Music",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Stalow Music for Windows: a kosher YouTube Music player with the approved-artist list",
   "main": "src/main.js",
   "license": "GPL-3.0-only",

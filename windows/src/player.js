@@ -56,6 +56,31 @@ const PAGE_SCRIPT = String.raw`
     const q = opts.quality === 'low' ? 'tiny' : opts.quality === 'high' ? 'hd1080' : 'auto';
     try { if (p && p.setPlaybackQualityRange) p.setPlaybackQualityRange(q, q); } catch (e) {}
   };
+  // Download: the song is recorded from the player while it plays once from the start to the end (the web
+  // player gives no file). Paused during adverts and pauses; a song that is left early is not saved.
+  let rec = null;
+  const finishRec = (r) => { r.chain.then(() => { if (window.__stalowRecorder) window.__stalowRecorder.done(r.id, r.ok); }); };
+  const stopRec = (ok) => {
+    if (!rec) return;
+    const r = rec; rec = null; r.ok = ok;
+    try { if (r.mr.state !== 'inactive') r.mr.stop(); else finishRec(r); } catch (e) { finishRec(r); }
+  };
+  const startRec = (id) => {
+    const v = video();
+    if (!v || !window.__stalowRecorder || rec) return false;
+    let stream;
+    try { stream = new MediaStream(v.captureStream().getAudioTracks()); } catch (e) { return false; }
+    if (!stream.getAudioTracks().length) return false;
+    const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 160000 });
+    const r = { id, mr, ok: false, chain: Promise.resolve() };
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) r.chain = r.chain.then(() => e.data.arrayBuffer()).then((b) => window.__stalowRecorder.chunk(id, b)); };
+    mr.onstop = () => finishRec(r);
+    rec = r;
+    if (speeding) { speeding = false; silentMs = 0; v.playbackRate = 1; }
+    v.currentTime = 0; wantPlaying = true; v.play().catch(() => {});
+    mr.start(2000);
+    return true;
+  };
   const applyVideoBlock = () => {
     let st = document.getElementById('__stalow_block');
     if (opts.blockVideo && !st) { st = document.createElement('style'); st.id = '__stalow_block'; st.textContent = 'video{visibility:hidden!important}'; document.documentElement.appendChild(st); }
@@ -79,6 +104,8 @@ const PAGE_SCRIPT = String.raw`
     seek(s) { const v = video(); if (v && isFinite(s)) v.currentTime = s; },
     volume(x) { volume = Math.max(0, Math.min(1, x)); const v = video(); if (v && !isAd()) v.volume = volume; },
     audio(o) { opts = Object.assign(opts, o || {}); applyGraph(); applyQuality(); applyVideoBlock(); },
+    record(id) { return expected === id && startRec(id); },
+    cancelRecord() { stopRec(false); },
   };
   setInterval(() => {
     if (/^consent\./.test(location.hostname)) {
@@ -92,6 +119,7 @@ const PAGE_SCRIPT = String.raw`
     document.querySelectorAll('ytmusic-you-there-renderer button, .ytmusic-you-there-renderer button').forEach((b) => b.click());
     const v = video();
     if (!v) return report({ state: 'loading' });
+    if (rec) { const pause = isAd() || v.paused; if (pause && rec.mr.state === 'recording') rec.mr.pause(); else if (!pause && rec.mr.state === 'paused') rec.mr.resume(); }
     if (isAd()) {
       // Never let an advert be heard: mute it, jump to its end and press Skip.
       v.muted = true;
@@ -104,13 +132,15 @@ const PAGE_SCRIPT = String.raw`
     if (opts.normalize || opts.skipSilence) ensureGraph(v);
     applyQuality(); applyVideoBlock();
     // Skip silence: quiet stretches (intros, gaps, long fade-outs) play fast until the music comes back.
-    if (opts.skipSilence && !v.paused && v.currentTime > 0.5) {
+    // (Not while a song is being saved: the file gets the song as it is.)
+    if (opts.skipSilence && !rec && !v.paused && v.currentTime > 0.5) {
       silentMs = level() < 0.004 ? silentMs + 400 : 0;
       const want = silentMs >= 800;
       if (want !== speeding) { speeding = want; v.playbackRate = want ? 4 : 1; }
     } else if (speeding) { speeding = false; silentMs = 0; v.playbackRate = 1; }
     // YouTube moved on to a song of its own choosing: stop it, the app picks the next song.
     if (expected && vidInUrl() && vidInUrl() !== expected) {
+      stopRec(false);
       v.pause();
       if (!endedSent) { endedSent = true; report({ state: 'ended', id: expected }); }
       return;
@@ -118,7 +148,7 @@ const PAGE_SCRIPT = String.raw`
     if (wantPlaying && v.paused && !v.ended && v.readyState > 2) v.play().catch(() => {});
     if (!wantPlaying && !v.paused) v.pause();
     if (v.ended || (isFinite(v.duration) && v.duration > 0 && v.currentTime >= v.duration - 0.3)) {
-      if (!endedSent) { endedSent = true; v.pause(); report({ state: 'ended', id: expected }); }
+      if (!endedSent) { endedSent = true; stopRec(true); v.pause(); report({ state: 'ended', id: expected }); }
       return;
     }
     const md = navigator.mediaSession && navigator.mediaSession.metadata;
@@ -168,7 +198,7 @@ class Player {
     }
     this.win = new BrowserWindow({
       show: false, width: 1100, height: 800, title: 'Stalow Music - YouTube sign-in',
-      webPreferences: { partition: PARTITION, backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true },
+      webPreferences: { partition: PARTITION, backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true, preload: require('path').join(__dirname, 'player-preload.js') },
     });
     this.win.webContents.setAudioMuted(false);
     this.win.on('close', (e) => { if (!this.quitting) { e.preventDefault(); this.win.hide(); } });
@@ -206,6 +236,14 @@ class Player {
       this.onEvent({ state: 'error', id: videoId, message: e.message });
     });
   }
+
+  /** Download: records the current song while it plays from the start; resolves false when it cannot. */
+  async record(videoId) {
+    if (!this.win || this.current !== videoId) return false;
+    return this.win.webContents.executeJavaScript(`!!(window.__stalow && window.__stalow.record(${JSON.stringify(videoId)}))`, true).catch(() => false);
+  }
+
+  cancelRecord() { this.run('cancelRecord()'); }
 
   run(code) { if (this.win) this.win.webContents.executeJavaScript(`window.__stalow && window.__stalow.${code}`, true).catch(() => {}); }
   resume() { this.run('play()'); }

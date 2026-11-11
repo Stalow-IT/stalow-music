@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self'; font-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self'; font-src 'self'; media-src 'self' file:; script-src 'self'">
   <title>Stalow Music</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,7 +13,9 @@
       <button data-view="home" data-icon="home" class="nav active"><span data-i18n="home">Home</span></button>
       <button data-view="search" data-icon="search" class="nav"><span data-i18n="search">Search</span></button>
       <button data-view="artists" data-icon="artist" class="nav"><span data-i18n="artists">Artists</span></button>
+      <button data-view="nowplaying" data-icon="audio" class="nav"><span data-i18n="now_playing">Now playing</span></button>
       <button data-view="queue" data-icon="queue" class="nav"><span data-i18n="queue">Queue</span></button>
+      <button data-view="downloads" data-icon="backup" class="nav"><span data-i18n="downloads">Downloads</span></button>
       <button data-view="settings" data-icon="settings" class="nav"><span data-i18n="settings">Settings</span></button>
     </nav>
   </aside>

@@ -102,6 +102,14 @@ EN = {
  'sign_in': 'Sign in', 'show_player_desc': 'For troubleshooting: shows the hidden YouTube Music window that plays the songs. Press again to hide it.',
  'show_hide': 'Show / hide', 'updates': 'Updates', 'version_n': 'Version {0}', 'updates_desc': 'Updates install automatically from stalow.netlify.app.',
  'check_for_updates': 'Check for updates', 'approved_artists': 'Approved artists', 'approved_artists_desc': '{0} artists, list version {1}',
+ 'downloads': 'Downloads', 'downloads_hint': 'Songs saved on this computer. They play without internet.', 'open_folder': 'Open folder',
+ 'downloads_count': '{0} songs, {1} MB', 'downloads_empty': 'No downloads yet. Open Now playing and press Download to save the song that is playing.',
+ 'remove_download': 'Delete download', 'remove_download_confirm': 'Delete the download of “{0}”?', 'remove_from_queue': 'Remove from queue',
+ 'clear_up_next': 'Clear up next', 'play_next': 'Play next', 'downloaded': 'Downloaded', 'download_saving': 'Saving… (press to cancel)',
+ 'download_saving_hint': 'The song is saved as it plays to the end.', 'action_download': 'Download',
+ 'download_failed': 'Could not save the song: {0}', 'download_done': 'Song saved. It now plays without internet.',
+ 'download_stopped': 'The song was not saved because it did not play to the end.', 'stalow_up_next': 'Up next',
+ 'downloads_folder': 'Downloads folder', 'downloads_folder_desc': 'Saved songs are in Music\\Stalow Music',
  'credits': 'Credits', 'credits_desc': 'Based on Zemer by ZemerTeam and Metrolist; free software under the GNU GPL v3.', 'open': 'Open',
 }
 
@@ -153,6 +161,14 @@ HE = {
  'lyrics_from': 'מילים מ-{0}', 'lyrics_synced': 'מסונכרן', 'lyrics_plain': 'לא מסונכרן', 'dark_theme_follow_system': 'לפי המערכת', 'dark_theme_on': 'כהה', 'dark_theme_off': 'בהיר',
  'enable_simpmusic_desc': 'מילים מהקהילה לפי השיר המדויק', 'enable_lrclib_desc': 'מאגר קהילתי של מילים מסונכרנות', 'enable_youtube_lyrics_desc': 'לשונית המילים של YouTube Music; נוסה אחרון',
  'lyrics_word_sync': 'מילים מילה אחר מילה', 'lyrics_word_sync_description': 'להדגיש כל מילה כשהיא מושרת, כשמקור המילים מספק תזמון למילים', 'lyrics_sync_offset_title': 'הזזת תזמון המילים', 'block_videos': 'חסום סרטונים',
+ 'downloads': 'הורדות', 'downloads_hint': 'שירים שנשמרו במחשב. הם מתנגנים גם בלי אינטרנט.', 'open_folder': 'פתח תיקייה',
+ 'downloads_count': '{0} שירים, {1} MB', 'downloads_empty': 'אין עדיין הורדות. פתחו את מתנגן כעת ולחצו הורדה כדי לשמור את השיר שמתנגן.',
+ 'remove_download': 'מחק הורדה', 'remove_download_confirm': 'למחוק את ההורדה של „{0}”?', 'remove_from_queue': 'הסר מהתור',
+ 'clear_up_next': 'נקה את הבאים בתור', 'play_next': 'נגן הבא', 'downloaded': 'הורד', 'download_saving': 'שומר… (לחצו לביטול)',
+ 'download_saving_hint': 'השיר נשמר בזמן שהוא מתנגן עד הסוף.', 'action_download': 'הורדה',
+ 'download_failed': 'לא ניתן לשמור את השיר: {0}', 'download_done': 'השיר נשמר. עכשיו הוא מתנגן גם בלי אינטרנט.',
+ 'download_stopped': 'השיר לא נשמר כי הוא לא התנגן עד הסוף.', 'stalow_up_next': 'הבאים בתור',
+ 'downloads_folder': 'תיקיית ההורדות', 'downloads_folder_desc': 'שירים שמורים נמצאים ב-Music\\Stalow Music',
  'approved_artists': 'אמנים מאושרים', 'approved_artists_desc': '{0} אמנים, גרסת רשימה {1}', 'credits': 'קרדיטים', 'credits_desc': 'מבוסס על Zemer של ZemerTeam ועל Metrolist; תוכנה חופשית לפי GNU GPL v3.', 'open': 'פתח',
 }
 

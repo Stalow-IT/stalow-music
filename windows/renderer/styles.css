@@ -201,3 +201,23 @@ svg { width: 20px; height: 20px; flex: none; }
 :root[dir="rtl"] .back svg { transform: scaleX(-1); }
 :root[dir="rtl"] .player .controls, :root[dir="rtl"] .player .volume { direction: ltr; }
 .np-art .ph { display: grid; place-items: center; }
+/* Now playing: player on the left, Up next / Lyrics on the right */
+.np-left { display: flex; flex-direction: column; }
+.np-seek { margin-top: 18px; }
+.np-seek input { width: 100%; }
+.np-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.np-buttons { justify-content: space-between; margin-top: 10px; }
+.np-buttons button { width: 48px; height: 48px; }
+.np-buttons button svg { width: 26px; height: 26px; }
+.buttons .play.big { width: 76px; height: 76px; background: var(--blue); color: #fff; }
+.buttons .play.big svg { width: 30px; height: 30px; }
+.np-actions { margin-top: 18px; align-items: center; }
+.small { font-size: 12px; }
+.np-right .chips { margin-bottom: 12px; }
+.np-queue { max-height: calc(100vh - 250px); overflow-y: auto; }
+/* queue rows: play by clicking the song; move / remove buttons on the right */
+.row.qrow { grid-template-columns: 28px 44px 1fr auto auto; }
+.qmain { background: none; border: 0; padding: 0; text-align: left; min-width: 0; color: inherit; }
+:root[dir="rtl"] .qmain { text-align: right; }
+.qbtns { display: flex; gap: 6px; }
+.add-group { display: flex; gap: 6px; }

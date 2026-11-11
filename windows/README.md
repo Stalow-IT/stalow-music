@@ -41,6 +41,12 @@ Settings are the Android app's settings that make sense on a computer, with the 
 - Texts are translated with `python3 scripts/make-i18n.py <android app>/app/src/main/res`, which takes the
   Android app's Hebrew and adds the Windows-only texts; it writes `renderer/i18n.js`.
 
+## Downloads
+
+The web player gives no song file, so Download records the song while it plays once from the start to the end
+(`src/player.js`, through the narrow bridge in `src/player-preload.js`), then `src/downloads.js` saves it to
+`Music\Stalow Music` and lists it in `downloads.json`. A downloaded song plays from its file, also without internet.
+
 ## Changing the artist list
 
 Edit the list in the Android project, raise its `"version"`, then copy the same file to `data/artists.json`.
