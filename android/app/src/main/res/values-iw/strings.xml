@@ -292,4 +292,7 @@
     <string name="pc_sync_bad_code">זה לא קוד סנכרון (24 אותיות וספרות)</string>
     <string name="continue_from_device">להמשיך מ%1$s</string>
     <string name="continue_action">המשך</string>
+    <string name="stalow_audio_only">שמע בלבד</string>
+    <string name="stalow_video_first">סרטונים ופודקאסטים כווידאו</string>
+    <string name="stalow_video_first_desc">מתחיל סרטונים ופרקי פודקאסט כווידאו, במסך מלא. הפעילו \"שמע בלבד\" בנגן כדי להאזין במקום זאת.</string>
 </resources>

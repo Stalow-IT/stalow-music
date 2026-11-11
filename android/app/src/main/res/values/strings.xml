@@ -518,4 +518,7 @@
     <string name="pc_sync_bad_code">That is not a sync code (24 letters and digits)</string>
     <string name="continue_from_device">Continue from %1$s</string>
     <string name="continue_action">Continue</string>
+    <string name="stalow_audio_only">Audio only</string>
+    <string name="stalow_video_first">Videos and podcasts as video</string>
+    <string name="stalow_video_first_desc">Start videos and podcast episodes as video, full screen. Turn on Audio only in the player to listen instead.</string>
 </resources>

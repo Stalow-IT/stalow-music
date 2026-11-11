@@ -97,6 +97,88 @@ const PAGE_SCRIPT = String.raw`
       ms.setActionHandler('pause', () => report({ action: 'pause' }));
     } catch (e) {}
   };
+  // Videos and podcasts play as video (Settings > Player & audio): the player fills the screen and only
+  // Stalow's controls show, in one bar at the bottom: seek, previous / play / next, and Audio only.
+  let videoOn = false, videoFull = false, vlabels = {}, bar = null, hideTimer = null, seeking = false;
+  const fmtTime = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+  const VIDEO_CSS = '#movie_player .ytp-chrome-top,#movie_player .ytp-chrome-bottom,#movie_player .ytp-gradient-top,#movie_player .ytp-gradient-bottom,#movie_player .ytp-pause-overlay,#movie_player .ytp-ce-element,#movie_player .ytp-endscreen-content,#movie_player .ytp-paid-content-overlay{display:none!important}'
+    + 'html.__stalow_v,html.__stalow_v body{background:#000!important;overflow:hidden!important}'
+    + 'html.__stalow_v #movie_player{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:2147483000!important;background:#000!important;margin:0!important}'
+    + 'html.__stalow_v #movie_player video{width:100vw!important;height:100vh!important;left:0!important;top:0!important;object-fit:contain!important}'
+    + '#__stalow_bar{position:absolute;left:0;right:0;bottom:0;z-index:2147483647;padding:32px 24px 14px;background:linear-gradient(transparent,rgba(0,0,0,.78));color:#fff;font:14px "DM Sans",system-ui,sans-serif;transition:opacity .25s;display:flex;flex-direction:column;gap:6px;direction:ltr}'
+    + '#__stalow_bar.hide{opacity:0;pointer-events:none}#movie_player.__stalow_idle,#movie_player.__stalow_idle *{cursor:none!important}'
+    + '#__stalow_bar input[type=range]{width:100%;accent-color:#2fd5c4;margin:0;cursor:pointer}'
+    + '#__stalow_bar .r{display:flex;align-items:center;gap:10px}#__stalow_bar .g{flex:1}#__stalow_bar .t{font-variant-numeric:tabular-nums;opacity:.9}'
+    + '#__stalow_bar button{background:none;border:0;color:#fff;cursor:pointer;padding:8px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}#__stalow_bar button:hover{background:rgba(255,255,255,.16)}'
+    + '#__stalow_bar button.p{background:#2fd5c4;color:#0b1220;width:52px;height:52px}#__stalow_bar button.p:hover{background:#5fe3d6}'
+    + '#__stalow_bar label{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}#__stalow_bar .sw{width:42px;height:24px;border-radius:12px;background:rgba(255,255,255,.35);position:relative;flex:none}'
+    + '#__stalow_bar .sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff}';
+  const ICONS = { prev: 'M6 6h2v12H6zm3.5 6 8.5 6V6z', next: 'M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z', play: 'M8 5v14l11-7z', pause: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z', full: 'M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z', win: 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z' };
+  const svg = (d, size) => { const n = 'http://www.w3.org/2000/svg'; const e = document.createElementNS(n, 'svg'); e.setAttribute('viewBox', '0 0 24 24'); e.setAttribute('width', size || 26); e.setAttribute('height', size || 26); e.setAttribute('fill', 'currentColor'); const p = document.createElementNS(n, 'path'); p.setAttribute('d', d); e.appendChild(p); return e; };
+  const btn = (cls, icon, label, onclick, size) => { const b = document.createElement('button'); b.className = cls; b.title = label || ''; b.setAttribute('aria-label', label || ''); b.appendChild(svg(icon, size)); b.addEventListener('click', (e) => { e.stopPropagation(); onclick(); }); return b; };
+  const setIcon = (b, d) => { if (b.dataset.icon === d) return; b.dataset.icon = d; b.replaceChildren(svg(d, 30)); };
+  const makeBar = () => {
+    const b = document.createElement('div'); b.id = '__stalow_bar';
+    const seek = document.createElement('input'); seek.type = 'range'; seek.min = '0'; seek.step = '1'; seek.value = '0'; seek.setAttribute('aria-label', vlabels.position || 'Position');
+    seek.addEventListener('input', () => { seeking = true; });
+    seek.addEventListener('change', () => { const v = video(); if (v) v.currentTime = Number(seek.value); seeking = false; });
+    const time = document.createElement('span'); time.className = 't';
+    const play = btn('p', ICONS.pause, vlabels.play || 'Play', () => { const v = video(); if (!v) return; if (v.paused) window.__stalow.play(); else window.__stalow.pause(); }, 30);
+    const prev = btn('', ICONS.prev, vlabels.previous || 'Previous', () => report({ action: 'previous' }));
+    const next = btn('', ICONS.next, vlabels.next || 'Next', () => report({ action: 'next' }));
+    const full = btn('', ICONS.full, vlabels.fullScreen || 'Full screen', () => report({ action: videoFull ? 'videoWindowed' : 'videoFull' }));
+    const audio = document.createElement('label'); const sw = document.createElement('span'); sw.className = 'sw'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', 'false');
+    const txt = document.createElement('span'); txt.textContent = vlabels.audioOnly || 'Audio only';
+    audio.append(txt, sw); audio.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); report({ action: 'audioOnly' }); });
+    const row = document.createElement('div'); row.className = 'r';
+    const g1 = document.createElement('span'); g1.className = 'g'; const g2 = document.createElement('span'); g2.className = 'g';
+    row.append(time, g1, prev, play, next, g2, full, audio);
+    b.append(seek, row);
+    b.__seek = seek; b.__time = time; b.__play = play; b.__full = full;
+    return b;
+  };
+  const showBar = () => {
+    if (!bar) return;
+    bar.classList.remove('hide'); const mp = document.getElementById('movie_player'); if (mp) mp.classList.remove('__stalow_idle');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { const v = video(); if (bar && v && !v.paused && !seeking) { bar.classList.add('hide'); const m = document.getElementById('movie_player'); if (m) m.classList.add('__stalow_idle'); } }, 3000);
+  };
+  const applyVideoMode = () => {
+    let st = document.getElementById('__stalow_vcss');
+    const mp = document.getElementById('movie_player');
+    if (!videoOn) {
+      if (st) st.remove(); if (bar) { bar.remove(); bar = null; }
+      document.documentElement.classList.remove('__stalow_v');
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      return;
+    }
+    if (!st) { st = document.createElement('style'); st.id = '__stalow_vcss'; st.textContent = VIDEO_CSS; document.documentElement.appendChild(st); }
+    document.documentElement.classList.add('__stalow_v');
+    if (!mp) return;
+    if (!bar || !mp.contains(bar)) { if (bar) bar.remove(); bar = makeBar(); mp.appendChild(bar); showBar(); }
+    if (videoFull && document.fullscreenElement !== mp && mp.requestFullscreen) mp.requestFullscreen().catch(() => {});
+    if (!videoFull && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    setIcon(bar.__full, videoFull ? ICONS.win : ICONS.full);
+    bar.__full.title = videoFull ? (vlabels.exitFullScreen || 'Exit full screen') : (vlabels.fullScreen || 'Full screen');
+  };
+  const updateBar = () => {
+    if (!videoOn) return;
+    if (!bar || !bar.isConnected) applyVideoMode();
+    const v = video(); if (!bar || !v) return;
+    const d = isFinite(v.duration) ? v.duration : 0;
+    if (!seeking) { bar.__seek.max = String(Math.floor(d)); bar.__seek.value = String(Math.floor(v.currentTime || 0)); }
+    bar.__time.textContent = fmtTime(seeking ? Number(bar.__seek.value) : v.currentTime) + (d ? ' / ' + fmtTime(d) : '');
+    setIcon(bar.__play, v.paused ? ICONS.play : ICONS.pause);
+  };
+  setInterval(updateBar, 250);
+  document.addEventListener('mousemove', () => { if (videoOn) showBar(); }, true);
+  document.addEventListener('keydown', (e) => {
+    if (!videoOn) return;
+    showBar();
+    if (e.key === 'Escape' && videoFull) { e.preventDefault(); report({ action: 'videoWindowed' }); }
+    else if (e.key === ' ' || e.key === 'k') { e.preventDefault(); e.stopPropagation(); const v = video(); if (v) { if (v.paused) window.__stalow.play(); else window.__stalow.pause(); } }
+  }, true);
+  document.addEventListener('fullscreenchange', () => { if (videoOn && videoFull && !document.fullscreenElement) report({ action: 'videoWindowed' }); });
   window.__stalow = {
     expect(id) { expected = id; endedSent = false; wantPlaying = true; },
     play() { wantPlaying = true; const v = video(); if (v) v.play().catch(() => {}); },
@@ -106,6 +188,7 @@ const PAGE_SCRIPT = String.raw`
     audio(o) { opts = Object.assign(opts, o || {}); applyGraph(); applyQuality(); applyVideoBlock(); },
     record(id) { return expected === id && startRec(id); },
     cancelRecord() { stopRec(false); },
+    videoMode(on, full, labels) { videoOn = !!on; videoFull = !!full; if (labels) vlabels = labels; applyVideoMode(); updateBar(); return videoOn; },
   };
   setInterval(() => {
     if (/^consent\./.test(location.hostname)) {
@@ -201,12 +284,20 @@ class Player {
       webPreferences: { partition: PARTITION, backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true, preload: require('path').join(__dirname, 'player-preload.js') },
     });
     this.win.webContents.setAudioMuted(false);
-    this.win.on('close', (e) => { if (!this.quitting) { e.preventDefault(); this.win.hide(); } });
+    this.win.on('close', (e) => {
+      if (this.quitting) return;
+      e.preventDefault();
+      if (this.videoMode && this.videoMode !== 'off') { this.showVideo('off'); this.onEvent({ action: 'videoClosed' }); } else this.win.hide();
+    });
     this.win.webContents.on('console-message', (...args) => {
       // Electron passes either (event, level, message) or (event) with event.message, depending on version
       const msg = typeof args[2] === 'string' ? args[2] : args[0] && args[0].message;
       if (typeof msg === 'string' && msg.startsWith(STATUS_PREFIX)) {
-        try { this.onEvent(JSON.parse(msg.slice(STATUS_PREFIX.length))); } catch (e) { /* ignore */ }
+        let ev = null;
+        try { ev = JSON.parse(msg.slice(STATUS_PREFIX.length)); } catch (e) { /* ignore */ }
+        if (!ev) return;
+        if (ev.state === 'playing' && this.videoMode && this.videoMode !== 'off' && this.videoAppliedFor !== this.current) { this.videoAppliedFor = this.current; this.applyVideo(); }
+        this.onEvent(ev);
       }
     });
     this.win.webContents.on('dom-ready', () => this.inject());
@@ -220,6 +311,7 @@ class Player {
     if (!this.win) return;
     const id = this.current;
     this.win.webContents.executeJavaScript(PAGE_SCRIPT + `;window.__stalow.audio(${JSON.stringify(this.audioOpts)});` + (id ? `;window.__stalow.expect(${JSON.stringify(id)});` : ''), true).catch(() => {});
+    this.applyVideo();
   }
 
   async play(videoId) {
@@ -260,6 +352,33 @@ class Player {
   }
 
   hide() { if (this.win) this.win.hide(); }
+
+  /**
+   * Videos and podcasts as video: 'full' (full screen), 'window' (a normal window) or 'off' (hidden: audio only).
+   * The window is YouTube Music's own player, so the video and the sound stay one stream.
+   */
+  showVideo(mode, labels) {
+    this.videoMode = ['full', 'window'].includes(mode) ? mode : 'off';
+    if (labels) this.videoLabels = labels;
+    if (!this.win || this.signingIn) return this.videoMode;
+    if (this.videoMode === 'off') {
+      this.run('videoMode(false)');
+      if (this.win.isFullScreen()) this.win.setFullScreen(false);
+      this.win.hide();
+      return this.videoMode;
+    }
+    this.win.setTitle('Stalow Music');
+    if (!this.win.isVisible()) this.win.show();
+    this.win.setFullScreen(this.videoMode === 'full');
+    this.win.focus();
+    this.applyVideo();
+    return this.videoMode;
+  }
+
+  applyVideo() {
+    if (!this.videoMode || this.videoMode === 'off') return;
+    this.run(`videoMode(true, ${this.videoMode === 'full'}, ${JSON.stringify(this.videoLabels || {})})`);
+  }
 
   /** Settings > "Show the YouTube player": to see what YouTube is showing when a song will not play. */
   toggleVisible() { if (!this.win) return false; if (this.win.isVisible()) this.win.hide(); else this.win.show(); return this.win.isVisible(); }

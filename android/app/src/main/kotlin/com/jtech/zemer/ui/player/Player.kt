@@ -148,6 +148,7 @@ import com.jtech.zemer.utils.VideoLinkBuilder
 import com.jtech.zemer.utils.makeTimeString
 import com.jtech.zemer.utils.rememberEnumPreference
 import com.jtech.zemer.utils.rememberPreference
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -242,6 +243,18 @@ fun BottomSheetPlayer(
     LaunchedEffect(isVideoMode, state.isExpanded) {
         if (PlayerVideoUiLogic.shouldExitFullscreen(isFullscreen, isVideoMode, state.isExpanded)) {
             isFullscreen = false
+        }
+    }
+
+    // Stalow: video opens full screen. When video mode starts (a video or podcast starting as video,
+    // or the Video toggle), the player opens and goes full screen; the close button returns to the player.
+    LaunchedEffect(isVideoMode) {
+        if (isVideoMode && !inPip) {
+            if (!state.isExpanded) {
+                state.expandSoft()
+                androidx.compose.runtime.snapshotFlow { state.isExpanded }.first { it }
+            }
+            if (playerConnection.isVideoMode.value) isFullscreen = true
         }
     }
 
@@ -832,7 +845,7 @@ fun BottomSheetPlayer(
                                 onEnterFullscreen = { isFullscreen = true },
                                 showVideoToggle = videoModeAvailable,
                                 isVideoMode = isVideoMode,
-                                onToggleVideoMode = { playerConnection.setVideoMode(it) },
+                                onToggleVideoMode = { playerConnection.chooseVideo(it) },
                             )
                     }
                     Column(
@@ -872,7 +885,7 @@ fun BottomSheetPlayer(
                                 onEnterFullscreen = { isFullscreen = true },
                                 showVideoToggle = videoModeAvailable,
                                 isVideoMode = isVideoMode,
-                                onToggleVideoMode = { playerConnection.setVideoMode(it) },
+                                onToggleVideoMode = { playerConnection.chooseVideo(it) },
                             )
                     }
 

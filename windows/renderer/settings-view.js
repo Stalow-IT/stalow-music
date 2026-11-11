@@ -79,6 +79,7 @@ const PAGES = {
       toggle('progressiveSeek', t('progressive_seek'), t('progressive_seek_desc'))),
     group(t('queue'),
       toggle('persistentQueue', t('persistent_queue'), t('persistent_queue_desc')),
+      toggle('videoFirst', t('video_first'), t('video_first_desc')),
       toggle('autoLoadMore', t('auto_load_more'), t('auto_load_more_desc')),
       toggle('disableLoadMoreWhenRepeatAll', t('disable_load_more_when_repeat_all'), t('disable_load_more_when_repeat_all_desc')),
       toggle('autoSkipNextOnError', t('auto_skip_next_on_error'), t('auto_skip_next_on_error_desc'))),

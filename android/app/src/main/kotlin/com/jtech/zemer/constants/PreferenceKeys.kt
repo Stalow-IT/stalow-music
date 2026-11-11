@@ -230,6 +230,8 @@ val QuickPicksKey = stringPreferencesKey("discover")
 val QueueEditLockKey = booleanPreferencesKey("queueEditLock")
 val AllowFemaleSingersKey = booleanPreferencesKey("allowFemaleSingers")
 val BlockVideosKey = booleanPreferencesKey("blockVideos")
+// Stalow: videos and podcast episodes start as video, full screen (default on); the player's Audio only switch turns it off.
+val VideoFirstKey = booleanPreferencesKey("stalowVideoFirst")
 val BlockPodcastsKey = booleanPreferencesKey("blockPodcasts")
 // One-time seed guard: on first run after podcast-blocking shipped, blockPodcasts is seeded from
 // blockVideos (a video-blocker gets podcasts blocked too) exactly once, after which the two toggles

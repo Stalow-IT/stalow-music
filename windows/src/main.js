@@ -230,6 +230,12 @@ const handlers = {
   },
   'app:signin': async () => player.showSignIn(),
   'app:togglePlayer': async () => player.toggleVisible(),
+  // Videos and podcasts as video: 'full', 'window' or 'off' (audio only), with the bar's texts in the app language
+  'player:video': async ({ mode, labels } = {}) => {
+    const clean = {};
+    for (const [k, v] of Object.entries(labels && typeof labels === 'object' ? labels : {})) if (/^\w{1,20}$/.test(k) && typeof v === 'string') clean[k] = v.slice(0, 60);
+    return player.showVideo(['full', 'window'].includes(mode) ? mode : 'off', clean);
+  },
   'app:openExternal': async (url) => { if (/^https:\/\//.test(url)) await shell.openExternal(url); },
   'app:checkUpdates': async () => checkForUpdates(true),
   'app:installUpdate': async (resume) => {

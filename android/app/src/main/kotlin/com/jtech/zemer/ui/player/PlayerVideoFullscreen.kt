@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -28,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -153,83 +155,8 @@ fun PlayerVideoFullscreen(onExit: () -> Unit) {
                     .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f))
                     .systemBarsPadding(),
             ) {
-                IconButton(
-                    onClick = onExit,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .focusBorder(CircleShape),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.close),
-                        contentDescription = stringResource(R.string.exit_fullscreen),
-                        tint = Color.White,
-                    )
-                }
-
-                // Quality switcher at TopEnd — the fullscreen overlay's free corner (close at
-                // TopStart, transport centered, seek bar at the bottom). Same shared pill component,
-                // but it opens the fullscreen-LOCAL panel below (onOpen) instead of the root sheet.
-                VideoQualitySelector(
-                    qualities = videoQualities,
-                    currentQuality = currentVideoQuality,
-                    onSelect = playerConnection::setVideoQuality,
-                    onOpen = { showQualityPanel = true },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp),
-                )
-
-                Row(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = playerConnection::seekToPrevious,
-                        enabled = canSkipPrevious,
-                        modifier = Modifier.focusBorder(CircleShape),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.skip_previous),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(36.dp),
-                        )
-                    }
-                    IconButton(
-                        onClick = { playerConnection.playPauseOrReplay(playbackState == STATE_ENDED) },
-                        modifier = Modifier
-                            .size(72.dp)
-                            .focusBorder(CircleShape),
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                when {
-                                    playbackState == STATE_ENDED -> R.drawable.replay
-                                    isPlaying -> R.drawable.pause
-                                    else -> R.drawable.play
-                                }
-                            ),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(48.dp),
-                        )
-                    }
-                    IconButton(
-                        onClick = playerConnection::seekToNext,
-                        enabled = canSkipNext,
-                        modifier = Modifier.focusBorder(CircleShape),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.skip_next),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(36.dp),
-                        )
-                    }
-                }
-
+                // Stalow: only the controls, in one bar at the bottom - the seek bar, then exit full screen,
+                // previous / play / next, the quality, and the Audio only switch.
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -250,17 +177,72 @@ fun PlayerVideoFullscreen(onExit: () -> Unit) {
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        IconButton(onClick = onExit, modifier = Modifier.focusBorder(CircleShape)) {
+                            Icon(
+                                painter = painterResource(R.drawable.close),
+                                contentDescription = stringResource(R.string.exit_fullscreen),
+                                tint = Color.White,
+                            )
+                        }
                         Text(
-                            text = makeTimeString(sliderPosition ?: position),
+                            text = makeTimeString(sliderPosition ?: position) +
+                                (if (duration != C.TIME_UNSET) " / " + makeTimeString(duration) else ""),
                             style = MaterialTheme.typography.labelMedium,
                             color = Color.White,
                         )
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = playerConnection::seekToPrevious,
+                            enabled = canSkipPrevious,
+                            modifier = Modifier.focusBorder(CircleShape),
+                        ) {
+                            Icon(painterResource(R.drawable.skip_previous), null, tint = Color.White, modifier = Modifier.size(32.dp))
+                        }
+                        IconButton(
+                            onClick = { playerConnection.playPauseOrReplay(playbackState == STATE_ENDED) },
+                            modifier = Modifier.size(56.dp).focusBorder(CircleShape),
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    when {
+                                        playbackState == STATE_ENDED -> R.drawable.replay
+                                        isPlaying -> R.drawable.pause
+                                        else -> R.drawable.play
+                                    }
+                                ),
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
+                        IconButton(
+                            onClick = playerConnection::seekToNext,
+                            enabled = canSkipNext,
+                            modifier = Modifier.focusBorder(CircleShape),
+                        ) {
+                            Icon(painterResource(R.drawable.skip_next), null, tint = Color.White, modifier = Modifier.size(32.dp))
+                        }
+                        Spacer(Modifier.weight(1f))
+                        VideoQualitySelector(
+                            qualities = videoQualities,
+                            currentQuality = currentVideoQuality,
+                            onSelect = playerConnection::setVideoQuality,
+                            onOpen = { showQualityPanel = true },
+                        )
+                        Spacer(Modifier.size(8.dp))
                         Text(
-                            text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = stringResource(R.string.stalow_audio_only),
+                            style = MaterialTheme.typography.labelLarge,
                             color = Color.White,
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        // Audio only: leaves video (and full screen) now, and the next videos and podcasts play as audio.
+                        Switch(
+                            checked = false,
+                            onCheckedChange = { audioOnly -> if (audioOnly) playerConnection.chooseVideo(false) },
+                            modifier = Modifier.focusBorder(CircleShape),
                         )
                     }
                 }

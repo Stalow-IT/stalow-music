@@ -127,6 +127,8 @@ class PlayerConnection(
     val isVideoMode = service.videoModeController.isVideoMode
     val videoErrorEvents = service.videoModeController.videoErrorEvents
     fun setVideoMode(enabled: Boolean) = service.videoModeController.setVideoMode(enabled)
+    /** The user's Video / Audio only choice: switches now and is remembered for the next videos and podcasts. */
+    fun chooseVideo(video: Boolean) = service.videoModeController.chooseVideo(video)
     // The quality switcher (beyond-720p): the current item's selectable ladder + active rung label.
     val videoQualities = service.videoModeController.videoQualities
     val currentVideoQuality = service.videoModeController.currentVideoQuality

@@ -346,6 +346,7 @@ async function playAt(i) {
   // YouTube Music should start within ~25 s; if not, say so instead of waiting silently
   state.watchdog = setTimeout(() => playFailed(t('error_not_starting')), 25000);
   if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); // eslint-disable-line no-undef
+  setVideo(videoModeFor(s));
   try { await P.play(s.id); } catch (e) { playFailed(e.message); }
   renderQueueIfOpen();
   topUpRadio();
@@ -430,7 +431,30 @@ async function topUpRadio(playWhenAdded = false) {
   } finally { r.busy = false; }
 }
 
+// Videos and podcasts as video (Settings > Player & audio): they start full screen with the controls at the
+// bottom; Audio only there turns the setting off. A downloaded file plays as audio (it is saved as sound).
+let videoMode = 'off';
+const isVideoItem = (s) => !!(s && (s.isVideo || s.isPodcast));
+function videoModeFor(s) {
+  if (!isVideoItem(s) || !S.videoFirst || S.blockVideos || downloaded.has(s.id)) return 'off';
+  return videoMode === 'window' ? 'window' : 'full';
+}
+function setVideo(mode) {
+  videoMode = mode;
+  const labels = { audioOnly: t('audio_only'), previous: t('previous'), next: t('next'), play: t('play'), fullScreen: t('full_screen'), exitFullScreen: t('exit_full_screen'), position: t('position') };
+  stalow.showVideo(mode, labels).catch(() => {});
+  if (typeof onNowPlayingChanged === 'function' && currentView && currentView[0] === 'nowplaying') onNowPlayingChanged(); // eslint-disable-line no-undef
+}
+async function watchVideo() { // the Now playing page's "Watch video"
+  if (!S.videoFirst) await setSetting('videoFirst', true);
+  setVideo('full');
+}
+
 stalow.onPlayer((ev) => {
+  if (ev.action === 'audioOnly') { setSetting('videoFirst', false); return setVideo('off'); }
+  if (ev.action === 'videoWindowed') return setVideo('window');
+  if (ev.action === 'videoFull') return setVideo('full');
+  if (ev.action === 'videoClosed') { videoMode = 'off'; return; }
   if (ev.action === 'next') return next();
   if (ev.action === 'previous') return prev();
   if (ev.action === 'play') return P.resume();

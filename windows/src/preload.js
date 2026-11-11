@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('stalow', {
   settings: () => call('app:settings'),
   signIn: () => call('app:signin'),
   togglePlayer: () => call('app:togglePlayer'),
+  showVideo: (mode, labels) => call('player:video', { mode, labels }),
   openExternal: (url) => call('app:openExternal', url),
   checkUpdates: () => call('app:checkUpdates'),
   installUpdate: (resume) => call('app:installUpdate', resume),
