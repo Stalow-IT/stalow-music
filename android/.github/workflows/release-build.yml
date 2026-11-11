@@ -1,0 +1,186 @@
+name: Android Release Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    # Skip the heavy, signing release build for changes that can't affect the APK
+    # (docs, the tests/ harness, repo meta). Use workflow_dispatch to build these manually.
+    # 'cipher' (the submodule POINTER) is skipped too: deployed apps fetch player configs
+    # from the cipher repo's raw master at runtime, so a pointer-only bump doesn't need an
+    # APK — the refreshed bundled defaults ride along with the next real release.
+    paths-ignore:
+      - 'docs/**'
+      - 'tests/**'
+      - '**/src/test/**'
+      - '**.md'
+      - 'scripts/**'
+      - '.github/**'
+      - '.idea/**'
+      - '.vscode/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
+      - 'LICENSE'
+      - 'cipher'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - 'tests/**'
+      - '**/src/test/**'
+      - '**.md'
+      - 'scripts/**'
+      - '.github/**'
+      - '.idea/**'
+      - '.vscode/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
+      - 'LICENSE'
+      - 'cipher'
+
+jobs:
+  assemble-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+
+
+      - name: Configure Android SDK path
+        run: echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Configure Firebase
+        run: echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
+
+      - name: Configure release keystore
+        run: |
+          mkdir -p app/keystore
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > app/keystore/release.keystore
+
+          {
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}"
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}"
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Assemble signed release
+        env:
+          # Request-signing key source; each versionCode's key is derived from it at build time. Where the secret
+          # is unavailable the build is simply unsigned.
+          ZEMER_SIG_MASTER: ${{ secrets.ZEMER_SIG_MASTER }}
+        run: ./gradlew assembleRelease
+
+      - name: Check 16 KB page-size alignment
+        run: bash scripts/check-16kb-alignment.sh app/build/outputs/apk/release/app-release.apk
+
+      - name: Check the saved-queue classes survived R8
+        run: bash scripts/check-persisted-queue-keep.sh app/build/outputs/apk/release/app-release.apk
+
+      # The R8 mapping of a build that ships (main / manual, never a PR), so its crash reports decode to readable
+      # stacks. Never fails the build: without the secret, or if the upload fails, the APK still ships.
+      - name: Upload R8 mapping for crash reports
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          CRASH_MAPPING_KEY: ${{ secrets.CRASH_MAPPING_KEY }}
+        run: |
+          if [ -z "$CRASH_MAPPING_KEY" ]; then echo "CRASH_MAPPING_KEY not set; skipped"; exit 0; fi
+          version_code=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts)
+          gzip -c app/build/outputs/mapping/release/mapping.txt > mapping.txt.gz
+          curl -fsS --max-time 180 -X POST \
+            -H "Authorization: Bearer $CRASH_MAPPING_KEY" -H "Content-Encoding: gzip" \
+            --data-binary @mapping.txt.gz \
+            "https://tracking.zemer.io/v1/mapping?commit=${GITHUB_SHA}&versionCode=${version_code}&runNumber=${GITHUB_RUN_NUMBER}"
+
+      - name: Upload APK artifact
+        id: upload-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/build/outputs/apk/release/*.apk
+
+      - name: Send Telegram notification
+        if: always()
+        # GitHub `${{ }}` expressions are passed through `env:` and read as shell vars rather than
+        # inlined into the script: the commit message / PR title are attacker-influenced free text and,
+        # spliced straight into bash, a stray quote or apostrophe (e.g. a commit body with "don't")
+        # breaks the script — or could inject commands. Quoted shell-var reads are safe from both.
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          PRIMARY_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EXTRA_CHAT_IDS: ${{ vars.TELEGRAM_CHAT_IDS }}
+          JOB_STATUS: ${{ job.status }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          REF_NAME: ${{ github.ref_name }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+        run: |
+          if [ "$JOB_STATUS" == "success" ]; then
+            STATUS="Success"
+          else
+            STATUS="Failed"
+          fi
+
+          if [ "$EVENT_NAME" == "pull_request" ]; then
+            TITLE="$PR_TITLE"
+            REF="PR #$PR_NUMBER"
+            LINK="$PR_URL"
+          else
+            TITLE=$(printf '%s' "$COMMIT_MESSAGE" | head -n 1)
+            REF="$REF_NAME"
+            LINK="$COMMIT_URL"
+          fi
+
+          MESSAGE=$(printf "Android Release Build\n\nStatus: %s\nBranch/PR: %s\nCommit: %s\n\nView Commit/PR: %s" "$STATUS" "$REF" "$TITLE" "$LINK")
+
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+
+          # Recipients = the primary chat (TELEGRAM_CHAT_ID secret) plus any added users listed in the
+          # TELEGRAM_CHAT_IDS repo variable (comma / space / newline separated). Deduped; blanks dropped.
+          # To add a user: they open the bot and press Start (bots can only DM users who started them),
+          # then add their numeric chat id to the TELEGRAM_CHAT_IDS variable under
+          # Settings > Secrets and variables > Actions > Variables. Helper: scripts/telegram-chats.sh
+          RECIPIENTS=$(printf '%s %s' "$PRIMARY_CHAT_ID" "$EXTRA_CHAT_IDS" \
+            | tr ',\n' '  ' | tr -s ' ' '\n' | awk 'NF && !seen[$0]++')
+
+          # --max-time so a stalled Telegram upload can't hang the job until the 6h timeout
+          # (observed on run 33894912549); || true because the APK artifact is already uploaded —
+          # a failed notification must not fail the build.
+          for CID in $RECIPIENTS; do
+            if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
+              curl -s --max-time 300 -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+                -F chat_id="$CID" \
+                -F document=@"$APK_FILE" \
+                -F caption="$MESSAGE" || true
+            else
+              curl -s --max-time 60 -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+                -d chat_id="$CID" \
+                --data-urlencode "text=${MESSAGE}" || true
+            fi
+          done

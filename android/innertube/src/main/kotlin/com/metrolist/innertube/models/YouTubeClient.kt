@@ -1,0 +1,124 @@
+package com.metrolist.innertube.models
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class YouTubeClient(
+    val clientName: String,
+    val clientVersion: String,
+    val clientId: String,
+    val userAgent: String,
+    val osName: String? = null,
+    val osVersion: String? = null,
+    val deviceMake: String? = null,
+    val deviceModel: String? = null,
+    val androidSdkVersion: String? = null,
+    val loginSupported: Boolean = false,
+    val loginRequired: Boolean = false,
+    val useSignatureTimestamp: Boolean = false,
+    val isEmbedded: Boolean = false,
+    val useWebPoTokens: Boolean = false,
+) {
+    fun toContext(locale: YouTubeLocale, visitorData: String?, dataSyncId: String?) = Context(
+        client = Context.Client(
+            clientName = clientName,
+            clientVersion = clientVersion,
+            osName = osName,
+            osVersion = osVersion,
+            deviceMake = deviceMake,
+            deviceModel = deviceModel,
+            androidSdkVersion = androidSdkVersion,
+            gl = locale.gl,
+            hl = locale.hl,
+            visitorData = visitorData
+        ),
+        user = Context.User(
+            onBehalfOfUser = if (loginSupported) dataSyncId else null
+        ),
+    )
+
+    companion object {
+        /**
+         * Should be the latest Firefox ESR version.
+         */
+        const val USER_AGENT_WEB = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
+
+        const val ORIGIN_YOUTUBE_MUSIC = "https://music.youtube.com"
+        const val REFERER_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/"
+        const val API_URL_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/youtubei/v1/"
+
+        val WEB = YouTubeClient(
+            clientName = "WEB",
+            clientVersion = "2.20260708.00.00",
+            clientId = "1",
+            userAgent = USER_AGENT_WEB,
+        )
+
+        val WEB_REMIX = YouTubeClient(
+            clientName = "WEB_REMIX",
+            clientVersion = "1.20260707.12.00",
+            clientId = "67",
+            userAgent = USER_AGENT_WEB,
+            loginSupported = true,
+            useSignatureTimestamp = true,
+            useWebPoTokens = true,
+        )
+
+        val WEB_CREATOR = YouTubeClient(
+            clientName = "WEB_CREATOR",
+            clientVersion = "1.20260708.06.00",
+            clientId = "62",
+            userAgent = USER_AGENT_WEB,
+            loginSupported = true,
+            loginRequired = true,
+            useSignatureTimestamp = true,
+            // Verified against the live CDN (tests/web-creator-stream.mjs): WEB_CREATOR returns
+            // ciphered URLs that 403 past the 1 MiB free window unless a videoId-bound pot is
+            // appended (HEAD also 403s without it). Enabling poTokens makes it stream the whole
+            // song — without this it is a dead fallback.
+            useWebPoTokens = true,
+        )
+
+        /**
+         * A minimal TV client (clientId 75) that serves ordinary ciphered adaptive URLs (not SABR),
+         * so it streams through the existing web (cipher + web-poToken) path — unlike the current 7.x
+         * TVHTML5, which returns SABR-only audio the app can't consume. Validated full-drain on-device;
+         * governed by the "TVHTML5" stream-source toggle.
+         */
+        val TVHTML5_SIMPLY = YouTubeClient(
+            clientName = "TVHTML5_SIMPLY",
+            clientVersion = "1.0",
+            clientId = "75",
+            userAgent = "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)",
+            useSignatureTimestamp = true,
+            useWebPoTokens = true,
+        )
+
+
+
+
+        // yt-dlp-master-exact `visionos` (1.02): the 0.1 build was internal/unreleased and could be
+        // retired any time; 1.02 validated whole-song drain against the live CDN (client-fulldownload)
+        // and on-device. The old 0.1 build was retired 2026-10-07 (HTTP 400 "Precondition check
+        // failed" on /player); see tests/clients-retired.mjs.
+        val VISIONOS = YouTubeClient(
+            clientName = "VISIONOS",
+            clientVersion = "1.02",
+            clientId = "101",
+            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+            osName = "visionOS",
+            osVersion = "26.5.23O471",
+            deviceMake = "Apple",
+            deviceModel = "RealityDevice17,1",
+            loginSupported = false,
+            useSignatureTimestamp = false
+        )
+
+        // Sibling builds of [VISIONOS], same device/os/UA. YouTube retires visionOS versions one at
+        // a time (0.1 went while 1.02 kept working), so these are second chances behind 1.02. Both
+        // whole-song drained 2026-10-07 (client-fulldownload); 1.0 and 1.1 are 404 on /player.
+        val VISIONOS_1_03 = VISIONOS.copy(clientVersion = "1.03")
+        val VISIONOS_1_01 = VISIONOS.copy(clientVersion = "1.01")
+
+    }
+}

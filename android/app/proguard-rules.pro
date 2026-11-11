@@ -1,0 +1,230 @@
+# Add project specific ProGuard rules here.
+# You can control the set of applied configuration files using the
+# proguardFiles setting in build.gradle.kts.
+#
+# For more details, see
+#   http://developer.android.com/guide/developing/tools/proguard.html
+
+-keepclassmembers class com.jtech.zemer.utils.sabr.EjsNTransformSolver$SolverWebView {
+    @android.webkit.JavascriptInterface public *;
+}
+-keepclassmembers class com.jtech.zemer.utils.cipher.CipherWebView {
+    @android.webkit.JavascriptInterface public *;
+}
+-keep class com.jtech.zemer.utils.sabr.EjsNTransformSolver { *; }
+-keep class com.jtech.zemer.utils.sabr.EjsNTransformSolver$SolverWebView { *; }
+-keep class com.jtech.zemer.utils.cipher.CipherDeobfuscator { *; }
+-keep class com.jtech.zemer.utils.cipher.CipherWebView { *; }
+-keep class com.jtech.zemer.utils.cipher.PlayerJsFetcher { *; }
+
+-keep class com.jtech.zemer.utils.cipher.** { *; }
+-keep class com.jtech.zemer.utils.sabr.** { *; }
+
+# Keep coroutine continuation for WebView callbacks
+-keepclassmembers class * {
+    void resume(...);
+    void resumeWithException(...);
+}
+
+## Kotlin Serialization
+# Keep `Companion` object fields of serializable classes.
+# This avoids serializer lookup through `getDeclaredClasses` as done for named companion objects.
+-if @kotlinx.serialization.Serializable class **
+-keepclasseswithmembers class <1> {
+    static <1>$Companion Companion;
+}
+
+# Keep `serializer()` on companion objects (both default and named) of serializable classes.
+-if @kotlinx.serialization.Serializable class ** {
+    static **$* *;
+}
+-keepclasseswithmembers class <2>$<3> {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Keep `INSTANCE.serializer()` of serializable objects.
+-if @kotlinx.serialization.Serializable class ** {
+    public static ** INSTANCE;
+}
+-keepclasseswithmembers class <1> {
+    public static <1> INSTANCE;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# @Serializable and @Polymorphic are used at runtime for polymorphic serialization.
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+
+## Logging (does not affect Timber)
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    # i/w/e are deliberately left in release builds
+}
+
+## Strip only verbose/debug Timber logging in release. i/w/e stay: they feed the crash reporter (breadcrumbs, and
+## reportException() logs at ERROR to report a non-fatal), so stripping them silenced every release non-fatal.
+-assumenosideeffects class timber.log.Timber {
+    public static void v(...);
+    public static void d(...);
+}
+-assumenosideeffects class timber.log.Timber$Tree {
+    public void v(...);
+    public void d(...);
+}
+
+## Our exception types stay distinct classes: R8 otherwise merges a plain Exception(message) subclass into another
+## of the same shape (a cipher PoTokenException reached crash reports as Ktor's URLDecodeException).
+-keep class com.jtech.zemer.** extends java.lang.Throwable
+-keep class com.metrolist.** extends java.lang.Throwable
+-keep class com.zemer.** extends java.lang.Throwable
+
+## Queue Persistence Rules
+# Keep every class in the persisted-queue graph whole. Without this R8 strips the unused
+# serialVersionUID, readResolve and unread fields, and the retained compat classes, so each build
+# writes a different class shape and an updating user's saved queue fails to restore.
+-keep class com.jtech.zemer.models.** implements java.io.Serializable { *; }
+-keep class com.jtech.zemer.playback.queues.** { *; }
+
+## UCrop Rules
+-dontwarn com.yalantis.ucrop**
+-keep class com.yalantis.ucrop** { *; }
+-keep interface com.yalantis.ucrop** { *; }
+
+-keep class com.jtech.zemer.utils.CoverArtNative { *; }
+
+## Firebase and Auth Rules (for release build sync)
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-keep class com.google.firebase.auth.** { *; }
+-keep class com.google.android.gms.auth.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+-dontwarn com.google.android.play.core.integrity.**
+
+## Firebase Authentication
+-keep class com.google.firebase.auth.FirebaseAuth { *; }
+-keep class com.google.firebase.auth.FirebaseUser { *; }
+-keep class com.google.firebase.auth.AuthResult { *; }
+-keep class com.google.firebase.auth.GoogleAuthProvider { *; }
+-keep class com.google.android.gms.auth.api.signin.** { *; }
+
+## App Sync Classes (prevent obfuscation)
+-keep class com.jtech.zemer.sync.** { *; }
+-keep class com.jtech.zemer.auth.** { *; }
+-keep class com.jtech.zemer.utils.DeviceIdGenerator { *; }
+-keep class com.jtech.zemer.utils.ContentFilterConfig { *; }
+-keep class com.jtech.zemer.utils.ContentFilterState { *; }
+-keep class com.jtech.zemer.sync.models.** { *; }
+
+## Keep DataStore and Preferences classes
+-keep class androidx.datastore.** { *; }
+-keep class androidx.datastore.preferences.** { *; }
+-dontwarn androidx.datastore.**
+
+## Hilt and Dependency Injection (keep sync-related)
+-keep class javax.inject.** { *; }
+-keep class dagger.** { *; }
+-keep class dagger.hilt.** { *; }
+-keep class javax.annotation.** { *; }
+-keep class * extends dagger.hilt.android.HiltAndroidApp
+-keepclasseswithmembers class * {
+    @dagger.hilt.android.AndroidEntryPoint <methods>;
+}
+-keepclasseswithmembers class * {
+    @dagger.hilt.android.lifecycle.HiltViewModel <methods>;
+}
+
+## Keep enum classes used in sync
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+## Keep Parcelable implementations for sync models
+-keep class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}
+
+## Keep custom annotations used in sync module
+-keep @interface com.jtech.zemer.di.SyncDataStore
+-keep @interface com.jtech.zemer.di.MainDataStore
+-keep @interface dagger.BindsInstance
+-keep @interface dagger.Provides
+-keep @interface javax.inject.Singleton
+-keep @interface javax.inject.Qualifier
+
+## Keep Gson serialization for Firestore models
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
+-keep class com.google.gson.** { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+## Keep R8/ProGuard from optimizing critical sync methods
+-keepclassmembers class com.jtech.zemer.sync.UserPreferencesRepository {
+    public *;
+}
+
+-keepclassmembers class com.jtech.zemer.auth.UserAuthManager {
+    public *;
+}
+
+-keepclassmembers class com.jtech.zemer.utils.DeviceIdGenerator {
+    public *;
+}
+
+## Keep Firebase callback interfaces
+-keep interface com.google.android.gms.tasks.OnSuccessListener
+-keep interface com.google.android.gms.tasks.OnFailureListener
+-keep interface com.google.android.gms.tasks.OnCompleteListener
+
+## kotlinx.serialization for the synced preference models
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keep,includedescriptorclasses class com.jtech.zemer.sync.models.**$$serializer { *; }
+-keepclassmembers class com.jtech.zemer.sync.models.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.jtech.zemer.sync.models.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+## Readable crash reports: shrink and optimize, but keep class/method names (the source is public, so renaming
+## hides nothing) and line numbers, so stacks need no mapping file
+-dontobfuscate
+-keepattributes SourceFile,LineNumberTable
+-keepattributes LocalVariableTable
+-keepattributes LocalVariableTypeTable
+
+## Shizuku & hidden Android APIs for the self-update installer
+-keep class rikka.shizuku.** { *; }
+-keep class moe.shizuku.** { *; }
+-keep class dev.rikka.tools.refine.** { *; }
+-keep class android.content.pm.IPackageManager { *; }
+-keep class android.content.pm.IPackageManager$Stub { *; }
+-keep class android.content.pm.IPackageInstaller { *; }
+-keep class android.content.pm.IPackageInstaller$Stub { *; }
+-keep class android.content.pm.IPackageInstallerSession { *; }
+-keep class android.content.pm.IPackageInstallerSession$Stub { *; }
+-keep class android.content.pm.PackageInstallerHidden { *; }
+-keep class android.content.pm.PackageInstallerHidden$* { *; }
+-keep class android.content.pm.PackageManagerHidden { *; }
+
+## libsu for the root install method
+-keep class com.topjohnwu.superuser.** { *; }
+
+## FCast casting: JNA + the uniffi-generated sender SDK.
+## The SDK's bindings (org.fcast.sender_sdk.*) subclass com.sun.jna.Structure and reflect over
+## their declared fields to map native (Rust) memory layout. If R8 strips/renames those classes
+## or fields, CastContext() throws in com.sun.jna.Structure.<init> and the RELEASE app crashes on
+## launch (debug has no R8, so this only shows up in a running release build).
+-dontwarn java.awt.**
+-keep class com.sun.jna.** { *; }
+-keepclassmembers class * extends com.sun.jna.Structure { <fields>; }
+-keep class * implements com.sun.jna.Library { *; }
+-keep class * implements com.sun.jna.Callback { *; }
+-keep class org.fcast.sender_sdk.** { *; }

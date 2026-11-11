@@ -1,0 +1,338 @@
+package com.jtech.zemer.sync
+
+import com.jtech.zemer.auth.AuthState
+import com.jtech.zemer.auth.UserAuthManager
+import com.jtech.zemer.utils.ContentFilterConfig
+import com.jtech.zemer.utils.reportException
+import com.jtech.zemer.utils.ContentFilterState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import android.util.Log
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.math.pow
+
+/**
+ * Service that orchestrates content filter preference synchronization.
+ * Handles automatic sync on app launch, authentication, and preference changes.
+ */
+@Singleton
+class ContentFilterSyncService @Inject constructor(
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val authManager: UserAuthManager
+) {
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.IDLE)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    private var _isApplyingServerPreferences = false
+
+    // The account the launch sync already ran for: the SignedIn event can repeat (token refresh), the sync need not.
+    @Volatile
+    private var initialSyncUid: String? = null
+    private val initialSyncMutex = kotlinx.coroutines.sync.Mutex()
+
+    init {
+        serviceScope.launch {
+            authManager.authStateFlow.collect { authState ->
+                handleAuthStateChange(authState)
+            }
+        }
+
+        serviceScope.launch {
+            ContentFilterState.state.collect { config ->
+                handlePreferenceChange(config)
+            }
+        }
+    }
+
+    /**
+     * Initialize sync service - called from MainActivity
+     */
+    fun initialize() {
+        serviceScope.launch {
+            Log.d("ZemerSync", "Initializing sync service")
+            Log.d("ZemerSync", "User signed in: ${authManager.isUserSignedIn}")
+            Log.d("ZemerSync", "Has authenticated sync: ${userPreferencesRepository.hasAuthenticatedSync()}")
+
+            // Auto-restore logic: Only auto-restore if we find server preferences but user isn't signed in locally
+            // This happens on data clear/reinstall, NOT on first-time sign-in
+            if (!authManager.isUserSignedIn && !userPreferencesRepository.isOnboardingComplete()) {
+                // A fresh install / data clear: onboarding's blocking restore gate does this lookup (one
+                // definitive lookup per install, not two).
+                Log.d("ZemerSync", "Onboarding pending - its restore gate checks for server preferences")
+            } else if (!authManager.isUserSignedIn && !userPreferencesRepository.needsInstallRestoreCheck()) {
+                // This install already has a definitive answer: an ordinary launch never looks the device up again.
+                Log.d("ZemerSync", "Not signed in - saved-settings check already done for this install")
+            } else if (!authManager.isUserSignedIn) {
+                // A restored app backup (onboarding done, no sign-in) or a lookup that never got an answer
+                try {
+                    Log.d("ZemerSync", "User not signed in locally - checking for server preferences to auto-restore")
+                    val result = userPreferencesRepository.fetchDevicePreferencesByDeviceId()
+                    if (result is DeviceRestoreResult.Restored) {
+                        Log.d("ZemerSync", "Found server preferences - performing auto-restore and auto-lock")
+                        _isApplyingServerPreferences = true
+                        val config = result.config
+                        Log.d("ZemerSync", "Applying config: $config")
+
+                        // Mark as auto-restored and auto-lock settings
+                        userPreferencesRepository.markAutoRestored(config)
+
+                        ContentFilterState.current = config
+                        userPreferencesRepository.saveToDataStore(config)
+                        // only now: a process death before the save must leave the lookup to run again
+                        userPreferencesRepository.markRestoreChecked()
+                        _isApplyingServerPreferences = false
+                        return@launch
+                    } else if (result is DeviceRestoreResult.NoPrefs) {
+                        Log.d("ZemerSync", "No server preferences found - first-time user, no auto-restore")
+                    } else {
+                        // Non-blocking here (a normal launch); onboarding has its own blocking gate.
+                        Log.d("ZemerSync", "Auto-restore check failed - keeping local preferences")
+                    }
+                } catch (e: Exception) {
+                    Log.d("ZemerSync", "Auto-restore exception: ${e.message}")
+                    reportException(e)
+                }
+            } else {
+                Log.d("ZemerSync", "User already signed in locally - no auto-restore")
+            }
+
+            // A signed-in account syncs on its SignedIn auth event (fired at every launch), once: running it here
+            // too doubled every launch's requests.
+        }
+    }
+
+    /**
+     * Perform manual sync - push current preferences to server
+     */
+    suspend fun performManualSync(): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                _syncState.value = SyncState.SYNCING
+
+                val result = userPreferencesRepository.syncToServer()
+                retryPendingUpload()
+
+                _syncState.value = SyncState.IDLE
+
+                result
+            } catch (e: Exception) {
+                _syncState.value = SyncState.ERROR(e.message ?: "Unknown error")
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
+     * Sync to server only
+     */
+    suspend fun syncToServer(): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                _syncState.value = SyncState.SYNCING
+
+                val result = userPreferencesRepository.syncToServer()
+                retryPendingUpload()
+
+                _syncState.value = SyncState.IDLE
+
+                result
+            } catch (e: Exception) {
+                _syncState.value = SyncState.ERROR(e.message ?: "Unknown error")
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun setSyncEnabled(enabled: Boolean) {
+        userPreferencesRepository.setSyncEnabled(enabled)
+    }
+
+    suspend fun isSyncEnabled(): Boolean {
+        return userPreferencesRepository.isSyncEnabled()
+    }
+
+    fun getSyncStatusFlow(): Flow<SyncStatus> {
+        return userPreferencesRepository.getSyncStatusFlow()
+    }
+
+    suspend fun getUserDevices(): Result<List<UserDevice>> {
+        return userPreferencesRepository.getUserDevices()
+    }
+
+    private suspend fun handleAuthStateChange(authState: AuthState) {
+        when (authState) {
+            is AuthState.SignedIn -> {
+                // Wait for auth to be fully ready (the uid the server keys the document by; an anonymous account has no email)
+                if (waitForAuthReady()) {
+                    initialSyncMutex.withLock {
+                        // Recorded only once the server-wins read worked, so a later SignedIn event retries a failed one
+                        if (initialSyncUid != authState.userId && performInitialSync()) {
+                            initialSyncUid = authState.userId
+                        }
+                    }
+                } else {
+                    _syncState.value = SyncState.ERROR("Authentication timeout")
+                    Log.e("ZemerSync", "Auth not ready within timeout")
+                }
+            }
+            is AuthState.SignedOut -> {
+                // User signed out - clear sync state
+                initialSyncUid = null
+                _syncState.value = SyncState.IDLE
+            }
+            else -> {
+                // Loading or error states - do nothing
+            }
+        }
+    }
+
+    private var pendingUploadJob: Job? = null
+
+    /**
+     * While an upload of the local filters is pending (the server was unreachable), keep retrying with
+     * backoff. The flag is persisted, so a restart picks it up in performSync before any pull.
+     */
+    private fun retryPendingUpload() {
+        if (pendingUploadJob?.isActive == true) return
+        pendingUploadJob = serviceScope.launch {
+            var attempt = 0
+            while (authManager.isUserSignedIn && userPreferencesRepository.isUploadPending()) {
+                delay(writeRetryDelayMs(attempt++))
+                Log.d("ZemerSync", "Retrying pending preference upload (attempt $attempt)")
+                userPreferencesRepository.syncToServer()
+            }
+        }
+    }
+
+    private suspend fun handlePreferenceChange(config: ContentFilterConfig) {
+        // Until this launch's sync ran for the account, startup emissions (the default, then the loaded value) are not
+        // changes; the launch sync uploads the local filters itself.
+        if (authManager.isUserSignedIn &&
+            initialSyncUid != null && initialSyncUid == authManager.currentUserId &&
+            userPreferencesRepository.isSyncEnabled() &&
+            !_isApplyingServerPreferences) {
+            syncToServer()
+        }
+    }
+
+    /**
+     * Perform initial sync when app starts or user signs in
+     */
+    /** True once the server-wins read succeeded. */
+    private suspend fun performInitialSync(): Boolean {
+        return try {
+            _syncState.value = SyncState.SYNCING
+            _isApplyingServerPreferences = true
+
+            val result = retryWithAuthTimeout {
+                userPreferencesRepository.performSync()
+            }
+            Log.d("ZemerSync", "Sync result: ${result.isSuccess}, error: ${result.exceptionOrNull()?.message}")
+
+            // After sync, ensure current local preferences are on the server (e.g. set during onboarding before
+            // signing in); free when they already match what the sync just read.
+            val uploadResult = userPreferencesRepository.syncToServer()
+            retryPendingUpload()
+            if (uploadResult.isSuccess) {
+                Log.d("ZemerSync", "Local preferences uploaded successfully after sign-in")
+            } else {
+                Log.e("ZemerSync", "Failed to upload local preferences after sign-in", uploadResult.exceptionOrNull())
+            }
+
+            _syncState.value = SyncState.IDLE
+            result.isSuccess
+        } catch (e: Exception) {
+            _syncState.value = SyncState.ERROR(e.message ?: "Sync failed")
+            false
+        } finally {
+            _isApplyingServerPreferences = false
+        }
+    }
+
+    private suspend fun waitForAuthReady(timeoutMs: Long = 10000L): Boolean {
+        val startTime = System.currentTimeMillis()
+
+        while (System.currentTimeMillis() - startTime < timeoutMs) {
+            if (authManager.isUserSignedIn && authManager.currentUserId != null) {
+                return true
+            }
+            kotlinx.coroutines.delay(100)
+        }
+        return false
+    }
+
+    /**
+     * Retry operation with authentication timeout and exponential backoff
+     */
+    private suspend fun <T> retryWithAuthTimeout(
+        maxRetries: Int = 5,
+        timeoutMs: Long = 10000L,
+        operation: suspend () -> T
+    ): Result<T> {
+        val startTime = System.currentTimeMillis()
+        var lastException: Exception? = null
+
+        for (attempt in 0 until maxRetries) {
+            try {
+                val isSignedIn = authManager.isUserSignedIn
+                val userId = authManager.currentUserId
+                Log.d("ZemerSync", "Retry attempt ${attempt + 1}: isSignedIn=$isSignedIn, hasUid=${userId != null}")
+
+                if (isSignedIn && userId != null) {
+                    Log.d("ZemerSync", "Auth is ready, executing operation")
+                    return Result.success(operation())
+                } else {
+                    lastException = Exception("Authentication not ready (attempt ${attempt + 1}/$maxRetries)")
+                    Log.d("ZemerSync", "Auth not ready: isSignedIn=$isSignedIn, hasUid=${userId != null}")
+                    if (System.currentTimeMillis() - startTime < timeoutMs) {
+                        // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+                        val delay = (100L * (1 shl attempt)).coerceAtMost(1600L)
+                        Log.d("ZemerSync", "Waiting ${delay}ms before retry")
+                        kotlinx.coroutines.delay(delay)
+                        continue
+                    } else {
+                        Log.d("ZemerSync", "Timeout reached, breaking")
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                lastException = e
+                Log.e("ZemerSync", "Exception in retry attempt ${attempt + 1}", e)
+                if (false) { // no sync account in Stalow Music
+                    // Auth error - retry with backoff
+                    if (System.currentTimeMillis() - startTime < timeoutMs) {
+                        val delay = (100L * (1 shl attempt)).coerceAtMost(1600L)
+                        Log.d("ZemerSync", "Auth error, waiting ${delay}ms before retry")
+                        kotlinx.coroutines.delay(delay)
+                        continue
+                    }
+                }
+                break
+            }
+        }
+
+        return Result.failure(lastException ?: Exception("Retry timeout after $timeoutMs ms"))
+    }
+}
+
+sealed class SyncState {
+    object IDLE : SyncState()
+    object SYNCING : SyncState()
+    data class ERROR(val message: String) : SyncState()
+
+    val isSyncing: Boolean get() = this is SYNCING
+    val isError: Boolean get() = this is ERROR
+}

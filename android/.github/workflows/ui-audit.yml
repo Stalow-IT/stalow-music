@@ -1,0 +1,55 @@
+name: UI audit
+
+# Enforces docs/ui/standards.md with cheap (grep-only) ratcheting/strict checks:
+#  - ui-audit.sh: fails on NEW raw fontSize/Color(0x..)/AlertDialog/menu-ListItem/blur and any new
+#    legacy download read in ui/ (R13), beyond scripts/ui-audit-baseline.tsv.
+#  - check-download-unification.sh: whole-app guard that download/progress state stays on the one
+#    path (no legacy DownloadUtil.downloads/getDownload reads, no Download.STATE_* anywhere, no
+#    per-surface Icon.Download). See docs/ui/standards.md §12.
+#  - check-dead-resources.sh: dead-resource ratchet — every string/drawable/raw resource must be
+#    referenced, beyond the shrink-only scripts/dead-resources-baseline.txt.
+# check-download-unification.sh and check-dead-resources.sh scan the WHOLE app (utils/,
+# viewmodels/, db/, MusicService) - not just ui/ - so this filter covers all module source.
+# It still skips docs, workflow and meta changes: a grep over source can only find something
+# when source actually changes.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/src/**'
+      - 'innertube/src/**'
+      - 'lrclib/src/**'
+      - 'simpmusic/src/**'
+      - 'scripts/ui-audit*'
+      - 'scripts/check-download-unification.sh'
+      - 'scripts/check-dead-resources.sh'
+      - 'scripts/dead-resources-baseline.txt'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/src/**'
+      - 'innertube/src/**'
+      - 'lrclib/src/**'
+      - 'simpmusic/src/**'
+      - 'scripts/ui-audit*'
+      - 'scripts/check-download-unification.sh'
+      - 'scripts/check-dead-resources.sh'
+      - 'scripts/dead-resources-baseline.txt'
+  workflow_dispatch:
+
+jobs:
+  ui-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: UI standards audit (ratcheting)
+        run: bash scripts/ui-audit.sh
+
+      - name: Download unification guard
+        run: bash scripts/check-download-unification.sh
+
+      - name: Dead-resource ratchet
+        run: bash scripts/check-dead-resources.sh

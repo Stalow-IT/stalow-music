@@ -1,0 +1,457 @@
+# Non-Kotlin file reference
+
+Every tracked non-Kotlin path outside `docs/` is listed. Text files report line counts; binary files report byte counts; gitlinks are recorded as non-file tracked paths. Total paths: `451`.
+
+| Path | Size/status | Type metadata |
+| --- | ---: | --- |
+| `.github/workflows/debug-build.yml` | 65 lines | text `.yml` |
+| `.github/workflows/docs-regenerate.yml` | 80 lines | text `.yml` |
+| `.github/workflows/player-monitor.yml` | 208 lines | text `.yml` |
+| `.github/workflows/regression.yml` | 84 lines | text `.yml` |
+| `.github/workflows/release-build.yml` | 186 lines | text `.yml` |
+| `.github/workflows/ui-audit.yml` | 55 lines | text `.yml` |
+| `.gitignore` | 117 lines | text `[none]` |
+| `.gitmodules` | 3 lines | text `[none]` |
+| `AGENTS.md` | 1218 lines | text `.md` |
+| `LICENSE` | 674 lines | text `[none]` |
+| `README.md` | 9 lines | text `.md` |
+| `app/.gitignore` | 1 lines | text `[none]` |
+| `app/build.gradle.kts` | 399 lines | text `.kts`; plugins `com.android.application, android, kotlin.serialization, hilt, kotlin.ksp, compose.compiler, google.gms.google.services, rikka.tools.refine` |
+| `app/lint.xml` | 11 lines | text `.xml`; XML root `lint` |
+| `app/proguard-rules.pro` | 230 lines | text `.pro` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/1.json` | 297 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/10.json` | 814 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/11.json` | 796 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/12.json` | 812 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/13.json` | 812 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/14.json` | 824 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/15.json` | 854 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/16.json` | 931 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/17.json` | 953 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/18.json` | 993 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/19.json` | 1006 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/2.json` | 656 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/20.json` | 1013 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/21.json` | 1035 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/22.json` | 1041 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/23.json` | 1016 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/24.json` | 1030 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/25.json` | 1072 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/26.json` | 1078 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/27.json` | 1096 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/28.json` | 1103 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/29.json` | 1109 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/3.json` | 718 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/30.json` | 1115 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/31.json` | 1151 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/32.json` | 1156 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/33.json` | 1229 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/34.json` | 1368 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/35.json` | 1378 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/36.json` | 1383 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/4.json` | 744 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/5.json` | 748 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/6.json` | 712 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/7.json` | 718 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/8.json` | 766 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/schemas/com.jtech.zemer.db.InternalDatabase/9.json` | 840 lines | text `.json`; JSON keys `formatVersion, database` |
+| `app/src/androidTest/assets/cover.jpg` | 12035 bytes | binary `.jpg` |
+| `app/src/androidTest/assets/sample-flat.m4a` | 5341038 bytes | binary `.m4a` |
+| `app/src/androidTest/assets/sample-opus.webm` | 5878798 bytes | binary `.webm` |
+| `app/src/debug/res/values/app_name.xml` | 4 lines | text `.xml`; XML root `resources` |
+| `app/src/main/AndroidManifest.xml` | 301 lines | text `.xml`; XML root `manifest` |
+| `app/src/main/cpp/zemersig/CMakeLists.txt` | 14 lines | text `.txt` |
+| `app/src/main/cpp/zemersig/apk_cert.c` | 100 lines | text `.c` |
+| `app/src/main/cpp/zemersig/apk_cert.h` | 8 lines | text `.h` |
+| `app/src/main/cpp/zemersig/code_check.c` | 86 lines | text `.c` |
+| `app/src/main/cpp/zemersig/code_check.h` | 8 lines | text `.h` |
+| `app/src/main/cpp/zemersig/hmac_sha256.c` | 82 lines | text `.c` |
+| `app/src/main/cpp/zemersig/hmac_sha256.h` | 9 lines | text `.h` |
+| `app/src/main/cpp/zemersig/zemer_sig_jni.c` | 161 lines | text `.c` |
+| `app/src/main/cpp/zemersig/zemer_sig_unmask.h` | 12 lines | text `.h` |
+| `app/src/main/ic_launcher-playstore.png` | 23742 bytes | binary `.png` |
+| `app/src/main/res/drawable-night/widget_background.xml` | 6 lines | text `.xml`; XML root `shape` |
+| `app/src/main/res/drawable/account.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/add.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/add_circle.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/album.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/arrow_back.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/arrow_downward.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/arrow_forward.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/arrow_top_left.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/arrow_upward.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/artist.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/backup.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/bedtime.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/bookmark.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/bookmark_filled.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/cached.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/cast.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/cast_connected.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/check.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/clear_all.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/close.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/content_copy.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/dark_mode.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/delete.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/delete_history.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/deselect.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/discover_tune.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/done.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/download.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/drag_handle.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/edit.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/equalizer.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/expand_less.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/expand_more.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/explore_outlined.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/fast_forward.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/fast_rewind.xml` | 14 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/favorite.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/favorite_border.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_abc.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_alef.xml` | 12 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_balance.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_campaign.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_candles.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_celebration.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_chassidus.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_chazzan.xml` | 109 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_coins.xml` | 13 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_comedian.xml` | 17 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_dark_mode.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_diamond.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_dinner_dining.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_family.xml` | 11 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_flag.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_graphic_eq.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_health.xml` | 14 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_heart_broken.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_kiruv.xml` | 13 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_landscape.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_local_fire_department.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_machshava.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_menorah.xml` | 12 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_menu_book.xml` | 11 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_mic.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_moadim.xml` | 13 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_music_note.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_nightlife.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_park.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_parsha.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_piano.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_quill.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_rings.xml` | 26 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_self_improvement.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_shiurim.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_star.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_sukkah.xml` | 12 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_tefilla.xml` | 17 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_theater_comedy.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_wb_sunny.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_wine_bar.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/genre_zemer_note.xml` | 18 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/github.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/google_webview.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/gradient.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/graphic_eq.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/grid_view.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/hide_image.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/history.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/home_filled.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/home_outlined.xml` | 13 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/ic_android_auto.xml` | 22 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/ic_fullscreen.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/ic_launcher_background.xml` | 13 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/ic_launcher_monochrome.xml` | 14 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/ic_video_hd.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/incognito.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/info.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/insert_photo.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/kid_zone.xml` | 18 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/language.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/library_add.xml` | 19 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/library_add_check.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/library_music.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/library_music_filled.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/library_music_outlined.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/link.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/list.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/lock.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/lock_open.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/lyrics.xml` | 37 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/menu.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/mic.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/more_horiz.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/more_vert.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/music_note.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/music_status.xml` | 14 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/nav_bar.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/offline.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/ondemand_video.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/palette.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/pause.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/person.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/play.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/playlist_add.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/playlist_play.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/podcast.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/queue_music.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/radio.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/radio_button_checked.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/radio_button_unchecked.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/remove.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/repeat.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/repeat_on.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/repeat_one.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/repeat_one_on.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/replay.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/restore.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/search.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/search_off.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/security.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/select_all.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/settings.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/share.xml` | 15 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/shortcut_library.xml` | 15 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/shortcut_resume.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/shortcut_search.xml` | 14 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/shuffle.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/shuffle_on.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/skip_next.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/skip_previous.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/sliders.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/slow_motion_video.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/small_icon.xml` | 14 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/speed.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/stats.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/storage.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/subscribe.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/subscribed.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/swipe.xml` | 16 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/sync.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/tab.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/trending_up.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/tune.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/update.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/volume_up.xml` | 10 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/warning.xml` | 9 lines | text `.xml`; XML root `vector` |
+| `app/src/main/res/drawable/widget_background.xml` | 6 lines | text `.xml`; XML root `shape` |
+| `app/src/main/res/drawable/widget_preview.xml` | 18 lines | text `.xml`; XML root `layer-list` |
+| `app/src/main/res/font/heebo_bold.ttf` | 44304 bytes | binary `.ttf` |
+| `app/src/main/res/font/heebo_extrabold.ttf` | 44528 bytes | binary `.ttf` |
+| `app/src/main/res/layout/widget_loading.xml` | 45 lines | text `.xml`; XML root `LinearLayout` |
+| `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | 6 lines | text `.xml`; XML root `adaptive-icon` |
+| `app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml` | 6 lines | text `.xml`; XML root `adaptive-icon` |
+| `app/src/main/res/mipmap-hdpi/ic_launcher.webp` | 730 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-hdpi/ic_launcher_foreground.webp` | 744 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-hdpi/ic_launcher_round.webp` | 1610 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-mdpi/ic_launcher.webp` | 534 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-mdpi/ic_launcher_foreground.webp` | 432 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-mdpi/ic_launcher_round.webp` | 1126 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xhdpi/ic_launcher.webp` | 914 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.webp` | 922 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp` | 2204 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xhdpi/tv_banner.png` | 2120 bytes | binary `.png` |
+| `app/src/main/res/mipmap-xxhdpi/ic_launcher.webp` | 1344 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.webp` | 1472 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp` | 3556 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp` | 1942 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.webp` | 2592 bytes | binary `.webp` |
+| `app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp` | 4890 bytes | binary `.webp` |
+| `app/src/main/res/raw/legal_builtin.json` | 14 lines | text `.json`; JSON keys `privacy, terms` |
+| `app/src/main/res/raw/loading_dots_blue.lottie` | 1221 bytes | binary `.lottie` |
+| `app/src/main/res/raw/welcome.lottie` | 2138 bytes | binary `.lottie` |
+| `app/src/main/res/resources.properties` | 1 lines | text `.properties` |
+| `app/src/main/res/values-fr/metrolist_strings.xml` | 282 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-fr/strings.xml` | 398 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-iw/metrolist_strings.xml` | 136 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-iw/strings.xml` | 262 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-ji/metrolist_strings.xml` | 3 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-ji/strings.xml` | 3 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-night/colors.xml` | 6 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values-v31/styles.xml` | 22 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values/app_name.xml` | 4 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values/colors.xml` | 9 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values/metrolist_strings.xml` | 699 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values/strings.xml` | 470 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values/styles.xml` | 26 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/values/values.xml` | 8 lines | text `.xml`; XML root `resources` |
+| `app/src/main/res/xml-v25/shortcuts.xml` | 33 lines | text `.xml`; XML root `shortcuts` |
+| `app/src/main/res/xml/accessibility_service_config.xml` | 9 lines | text `.xml`; XML root `accessibility-service` |
+| `app/src/main/res/xml/automotive_app_desc.xml` | 4 lines | text `.xml`; XML root `automotiveApp` |
+| `app/src/main/res/xml/backup_rules.xml` | 12 lines | text `.xml`; XML root `full-backup-content` |
+| `app/src/main/res/xml/data_extraction_rules.xml` | 25 lines | text `.xml`; XML root `data-extraction-rules` |
+| `app/src/main/res/xml/music_widget_info.xml` | 18 lines | text `.xml`; XML root `appwidget-provider` |
+| `app/src/main/res/xml/provider_paths.xml` | 12 lines | text `.xml`; XML root `paths` |
+| `app/src/test/cpp/apk_cert_harness.c` | 17 lines | text `.c` |
+| `app/src/test/cpp/code_check_harness.c` | 27 lines | text `.c` |
+| `app/src/test/cpp/hmac_host_harness.c` | 27 lines | text `.c` |
+| `app/src/test/cpp/sig_unmask_harness.c` | 31 lines | text `.c` |
+| `app/src/test/resources/contentsig/content-sig-vectors.json` | 36 lines | text `.json`; JSON keys `about, keyId, privatePkcs8Pem, publicSpkiB64, vectors` |
+| `app/src/test/resources/lyrics/apple-1571752969.expected.lrc` | 51 lines | text `.lrc` |
+| `app/src/test/resources/lyrics/apple-1571752969.json` | 1 lines | text `.json`; JSON keys `ttmlContent` |
+| `app/src/test/resources/lyrics/apple-1571752969.paxsenix.lrc` | 52 lines | text `.lrc` |
+| `app/src/test/resources/lyrics/apple-unsynced-reply.json` | 1 lines | text `.json`; JSON keys `type, metadata, content, lrc, elrc, elrcMultiPerson, plain, ttmlContent, source, cacheUploadMode` |
+| `app/src/test/resources/lyrics/jkaraoke-1971-golden.json` | 5 lines | text `.json`; JSON keys `songId, plain, synced` |
+| `app/src/test/resources/lyrics/jkaraoke-page28.json` | 1 lines | text `.json`; JSON keys `data, links, meta` |
+| `app/src/test/resources/lyrics/jyrics-0.html` | 721 lines | text `.html` |
+| `app/src/test/resources/lyrics/jyrics-1.html` | 706 lines | text `.html` |
+| `app/src/test/resources/lyrics/jyrics-2.html` | 751 lines | text `.html` |
+| `app/src/test/resources/lyrics/jyrics-golden.json` | 14 lines | text `.json`; JSON keys `jyrics-0.html, jyrics-1.html, jyrics-2.html` |
+| `app/src/test/resources/lyrics/resolve-apple-linetimes.json` | 1 lines | text `.json`; JSON keys `videoId, lang, verified, hasSynced, sources, lineTimes` |
+| `app/src/test/resources/lyrics/resolve-zemer-richsync.json` | 1 lines | text `.json`; JSON keys `videoId, lang, verified, hasSynced, sources` |
+| `app/src/test/resources/lyrics/resolve-zingmusic-linetimes.json` | 1 lines | text `.json`; JSON keys `videoId, lang, verified, hasSynced, sources, lineTimes` |
+| `app/src/test/resources/lyrics/shironet-0.html` | 56 lines | text `.html` |
+| `app/src/test/resources/lyrics/shironet-golden.json` | 8 lines | text `.json` |
+| `app/src/test/resources/lyrics/tab4u-72017.expected.txt` | 99 lines | text `.txt` |
+| `app/src/test/resources/lyrics/tab4u-72017.html` | 1802 lines | text `.html` |
+| `app/src/test/resources/lyrics/zemirotdb-186.expected.txt` | 1 lines | text `.txt` |
+| `app/src/test/resources/lyrics/zemirotdb-186.html` | 301 lines | text `.html` |
+| `app/src/test/resources/lyrics/zing-1340.json` | 1 lines | text `.json`; JSON keys `data` |
+| `app/src/test/resources/lyrics/zing-golden.json` | 20 lines | text `.json` |
+| `app/src/test/resources/persistqueue/persistent_queue_v37.bin` | 1642 bytes | binary `.bin` |
+| `app/src/test/resources/sig/sig-vectors-generated.json` | 2406 lines | text `.json`; JSON keys `about, keyB64, vectors` |
+| `app/src/test/resources/sig/sig-vectors.json` | 115 lines | text `.json`; JSON keys `about, keyB64, vectors, v2About, v2, derivation` |
+| `app/src/test/resources/sig/signed-fixture.bin` | 8289 bytes | binary `.bin` |
+| `app/universal/release/baselineProfiles/0/app-universal-release.dm` | 10017 bytes | binary `.dm` |
+| `app/universal/release/baselineProfiles/1/app-universal-release.dm` | 9981 bytes | binary `.dm` |
+| `build.gradle.kts` | 36 lines | text `.kts`; plugins `hilt, kotlin.ksp, google.gms.google.services, rikka.tools.refine` |
+| `cipher` | gitlink/non-file | tracked path is not a regular file in this checkout |
+| `gradle.properties` | 26 lines | text `.properties` |
+| `gradle/libs.versions.toml` | 148 lines | text `.toml` |
+| `gradle/wrapper/gradle-wrapper.jar` | 45457 bytes | binary `.jar` |
+| `gradle/wrapper/gradle-wrapper.properties` | 8 lines | text `.properties` |
+| `gradlew` | 248 lines | text `[none]` |
+| `gradlew.bat` | 93 lines | text `.bat` |
+| `innertube/.gitignore` | 1 lines | text `[none]` |
+| `innertube/build.gradle.kts` | 18 lines | text `.kts`; plugins `kotlin.serialization, jvm` |
+| `lint.xml` | 6 lines | text `.xml`; XML root `lint` |
+| `scripts/check-16kb-alignment.sh` | 67 lines | text `.sh` |
+| `scripts/check-dead-resources.sh` | 93 lines | text `.sh` |
+| `scripts/check-download-unification.sh` | 53 lines | text `.sh` |
+| `scripts/check-persisted-queue-keep.sh` | 61 lines | text `.sh` |
+| `scripts/dead-resources-baseline.txt` | 4 lines | text `.txt` |
+| `scripts/telegram-chats.sh` | 38 lines | text `.sh` |
+| `scripts/ui-audit-baseline.tsv` | 14 lines | text `.tsv` |
+| `scripts/ui-audit.sh` | 262 lines | text `.sh` |
+| `scripts/ui-strings-scan.py` | 96 lines | text `.py` |
+| `settings.gradle.kts` | 33 lines | text `.kts` |
+| `tests/INVESTIGATION.md` | 226 lines | text `.md` |
+| `tests/MWEB-INVESTIGATION.md` | 47 lines | text `.md` |
+| `tests/README.md` | 134 lines | text `.md` |
+| `tests/analyze-player.mjs` | 53 lines | text `.mjs` |
+| `tests/broken-clients.mjs` | 143 lines | text `.mjs` |
+| `tests/check-live-player.mjs` | 81 lines | text `.mjs` |
+| `tests/cipher-check.mjs` | 86 lines | text `.mjs` |
+| `tests/cipher.mjs` | 205 lines | text `.mjs` |
+| `tests/client-fulldownload.mjs` | 117 lines | text `.mjs` |
+| `tests/clients-retired.mjs` | 95 lines | text `.mjs` |
+| `tests/clients.mjs` | 40 lines | text `.mjs` |
+| `tests/config-covers.mjs` | 24 lines | text `.mjs` |
+| `tests/cred.mjs` | 82 lines | text `.mjs` |
+| `tests/derive-player-config.mjs` | 89 lines | text `.mjs` |
+| `tests/discover-clients.mjs` | 116 lines | text `.mjs` |
+| `tests/download-media-samples.mjs` | 79 lines | text `.mjs` |
+| `tests/full-stream.mjs` | 87 lines | text `.mjs` |
+| `tests/gen-player-dates.mjs` | 41 lines | text `.mjs` |
+| `tests/inspect-player.mjs` | 48 lines | text `.mjs` |
+| `tests/next-counterpart-auth.mjs` | 92 lines | text `.mjs` |
+| `tests/package-lock.json` | 554 lines | text `.json`; JSON keys `name, lockfileVersion, requires, packages` |
+| `tests/package.json` | 7 lines | text `.json`; JSON keys `dependencies` |
+| `tests/player-configs.mjs` | 96 lines | text `.mjs` |
+| `tests/player-configs.test.mjs` | 120 lines | text `.mjs` |
+| `tests/pot-probe.mjs` | 139 lines | text `.mjs` |
+| `tests/potoken.mjs` | 133 lines | text `.mjs` |
+| `tests/probe-all-ids.mjs` | 126 lines | text `.mjs` |
+| `tests/probe-client-auth.mjs` | 206 lines | text `.mjs` |
+| `tests/probe-client-detail.mjs` | 156 lines | text `.mjs` |
+| `tests/probe-client-v2.mjs` | 203 lines | text `.mjs` |
+| `tests/probe-client-v3.mjs` | 179 lines | text `.mjs` |
+| `tests/probe-clients.mjs` | 98 lines | text `.mjs` |
+| `tests/probe-extended.mjs` | 221 lines | text `.mjs` |
+| `tests/probe-mweb-app-exact.mjs` | 201 lines | text `.mjs` |
+| `tests/probe-mweb-deobfuscate.mjs` | 197 lines | text `.mjs` |
+| `tests/probe-mweb-drain.mjs` | 158 lines | text `.mjs` |
+| `tests/probe-mweb-full.mjs` | 169 lines | text `.mjs` |
+| `tests/probe-mweb-itag140.mjs` | 116 lines | text `.mjs` |
+| `tests/probe-mweb-nopot.mjs` | 103 lines | text `.mjs` |
+| `tests/probe-mweb-pervideo.mjs` | 129 lines | text `.mjs` |
+| `tests/probe-mweb-playerjs.mjs` | 46 lines | text `.mjs` |
+| `tests/probe-mweb-pot.mjs` | 59 lines | text `.mjs` |
+| `tests/probe-mweb-reqpot.mjs` | 108 lines | text `.mjs` |
+| `tests/probe-mweb-sabr.mjs` | 105 lines | text `.mjs` |
+| `tests/probe-mweb-stream.mjs` | 111 lines | text `.mjs` |
+| `tests/probe-mweb-verdict.mjs` | 156 lines | text `.mjs` |
+| `tests/probe-mweb-wall-absolute.mjs` | 95 lines | text `.mjs` |
+| `tests/probe-mweb.mjs` | 132 lines | text `.mjs` |
+| `tests/probe-proper.mjs` | 200 lines | text `.mjs` |
+| `tests/probe-yt-endpoint.mjs` | 203 lines | text `.mjs` |
+| `tests/re-apple.mjs` | 52 lines | text `.mjs` |
+| `tests/re-compare.mjs` | 59 lines | text `.mjs` |
+| `tests/re-deep.mjs` | 79 lines | text `.mjs` |
+| `tests/re-ios.mjs` | 69 lines | text `.mjs` |
+| `tests/re-oauth.mjs` | 116 lines | text `.mjs` |
+| `tests/recent-releases/README.md` | 45 lines | text `.md` |
+| `tests/recent-releases/build-feed.mjs` | 145 lines | text `.mjs` |
+| `tests/recent-releases/lib.mjs` | 239 lines | text `.mjs` |
+| `tests/recent-releases/probe-dates.mjs` | 80 lines | text `.mjs` |
+| `tests/recent-releases/probe-order.mjs` | 103 lines | text `.mjs` |
+| `tests/recent-releases/self-test.mjs` | 103 lines | text `.mjs` |
+| `tests/recent-releases/whitelist.mjs` | 62 lines | text `.mjs` |
+| `tests/results.json` | 222 lines | text `.json` |
+| `tests/retest-web.mjs` | 58 lines | text `.mjs` |
+| `tests/run.mjs` | 181 lines | text `.mjs` |
+| `tests/sabr-ab-probe.mjs` | 200 lines | text `.mjs` |
+| `tests/sabr-clients.mjs` | 153 lines | text `.mjs` |
+| `tests/sabr-quality-sweep.mjs` | 202 lines | text `.mjs` |
+| `tests/sabr-seek.mjs` | 197 lines | text `.mjs` |
+| `tests/sabr-select-compare.mjs` | 75 lines | text `.mjs` |
+| `tests/sabr-stream.mjs` | 167 lines | text `.mjs` |
+| `tests/sabr-video-clients.mjs` | 166 lines | text `.mjs` |
+| `tests/sabr-video.mjs` | 207 lines | text `.mjs` |
+| `tests/sabr-watchtime.mjs` | 157 lines | text `.mjs` |
+| `tests/scan-live-players.mjs` | 226 lines | text `.mjs` |
+| `tests/scan-live-players.test.mjs` | 76 lines | text `.mjs` |
+| `tests/search/README.md` | 96 lines | text `.md` |
+| `tests/search/album-facet-probe.mjs` | 42 lines | text `.mjs` |
+| `tests/search/corpus-ambiguity.mjs` | 15 lines | text `.mjs` |
+| `tests/search/corpus-resolve.mjs` | 69 lines | text `.mjs` |
+| `tests/search/coverage.mjs` | 155 lines | text `.mjs` |
+| `tests/search/diag-auth.mjs` | 77 lines | text `.mjs` |
+| `tests/search/drive-album-resolve.mjs` | 35 lines | text `.mjs` |
+| `tests/search/drive-folder-resolve2.mjs` | 24 lines | text `.mjs` |
+| `tests/search/fetch-whitelist.mjs` | 59 lines | text `.mjs` |
+| `tests/search/jkaraoke-resolve.mjs` | 37 lines | text `.mjs` |
+| `tests/search/jyrics-artist-resolve.mjs` | 24 lines | text `.mjs` |
+| `tests/search/jyrics-catalog-match.mjs` | 13 lines | text `.mjs` |
+| `tests/search/jyrics-common.mjs` | 20 lines | text `.mjs` |
+| `tests/search/jyrics-crawl.mjs` | 42 lines | text `.mjs` |
+| `tests/search/jyrics-resolve-videos.mjs` | 41 lines | text `.mjs` |
+| `tests/search/jyrics-vs-youtube.mjs` | 20 lines | text `.mjs` |
+| `tests/search/lib.mjs` | 157 lines | text `.mjs` |
+| `tests/search/lyrics-avenues-probe.mjs` | 82 lines | text `.mjs` |
+| `tests/search/lyrics-coverage.mjs` | 67 lines | text `.mjs` |
+| `tests/search/lyrics-desc-scan.mjs` | 44 lines | text `.mjs` |
+| `tests/search/lyrics-genius-probe.mjs` | 21 lines | text `.mjs` |
+| `tests/search/lyrics-providers-probe.mjs` | 40 lines | text `.mjs` |
+| `tests/search/lyrics-recheck.mjs` | 44 lines | text `.mjs` |
+| `tests/search/lyrics-video-desc-probe.mjs` | 47 lines | text `.mjs` |
+| `tests/search/lyrics-youtube-fulltext.mjs` | 22 lines | text `.mjs` |
+| `tests/search/lyrics-youtube-probe.mjs` | 30 lines | text `.mjs` |
+| `tests/search/names-resolve-yt.mjs` | 26 lines | text `.mjs` |
+| `tests/search/parsers.mjs` | 80 lines | text `.mjs` |
+| `tests/search/pill-survival.mjs` | 101 lines | text `.mjs` |
+| `tests/search/run.mjs` | 169 lines | text `.mjs` |
+| `tests/search/schema.mjs` | 230 lines | text `.mjs` |
+| `tests/search/self-test.mjs` | 103 lines | text `.mjs` |
+| `tests/search/verify-album-fix.mjs` | 61 lines | text `.mjs` |
+| `tests/search/whitelist-findable.mjs` | 114 lines | text `.mjs` |
+| `tests/sts-mismatch.mjs` | 125 lines | text `.mjs` |
+| `tests/test-mweb-cipher.mjs` | 137 lines | text `.mjs` |
+| `tests/validate-player-config.mjs` | 202 lines | text `.mjs` |
+| `tests/video-progressive-stream.mjs` | 276 lines | text `.mjs` |
+| `tests/video-qualities.mjs` | 306 lines | text `.mjs` |
+| `tests/watchtime-cpn-stream.mjs` | 110 lines | text `.mjs` |
+| `tests/web-creator-stream.mjs` | 142 lines | text `.mjs` |
+| `tests/web-remix-stream.mjs` | 278 lines | text `.mjs` |

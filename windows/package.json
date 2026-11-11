@@ -1,0 +1,71 @@
+{
+  "name": "stalow-music-desktop",
+  "productName": "Stalow Music",
+  "version": "1.0.9",
+  "description": "Stalow Music for Windows: a kosher YouTube Music player with the approved-artist list",
+  "main": "src/main.js",
+  "license": "GPL-3.0-only",
+  "author": "Stalow",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist:win": "electron-builder --win nsis --x64",
+    "release": "npm run dist:win && node scripts/make-update.js"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "2.20.1"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.stalow.music.desktop",
+    "productName": "Stalow Music",
+    "copyright": "Stalow Music - GPL-3.0 (based on Zemer by ZemerTeam and Metrolist)",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "renderer/**/*",
+      "data/**/*",
+      "build/icon.png",
+      "package.json",
+      "LICENSE",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Stalow-Music-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Stalow Music",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US",
+      "en-GB",
+      "he",
+      "fr"
+    ],
+    "publish": null
+  }
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self'; script-src 'self'">
+  <title>Stalow Music</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><img src="logo.png" alt=""><span>Stalow Music</span></div>
+    <nav>
+      <button data-view="home" class="nav active">Home</button>
+      <button data-view="search" class="nav">Search</button>
+      <button data-view="artists" class="nav">Artists</button>
+      <button data-view="queue" class="nav">Queue</button>
+      <button data-view="settings" class="nav">Settings</button>
+    </nav>
+  </aside>
+
+  <main id="main">
+    <div class="topbar"><button id="btn-back" class="back" title="Back (Alt+Left)" aria-label="Back" hidden>&#8592; Back</button></div>
+    <div id="update-banner" class="banner" hidden></div>
+    <div id="view"></div>
+  </main>
+
+  <footer class="player">
+    <div class="now">
+      <img id="np-art" alt="" hidden>
+      <div class="np-text"><div id="np-title" class="ellipsis">Nothing playing</div><div id="np-artist" class="ellipsis muted"></div></div>
+    </div>
+    <div class="controls">
+      <div class="buttons">
+        <button id="btn-prev" title="Previous" aria-label="Previous">&#9198;</button>
+        <button id="btn-play" class="play" title="Play" aria-label="Play">&#9654;</button>
+        <button id="btn-next" title="Next" aria-label="Next">&#9197;</button>
+      </div>
+      <div class="seek"><span id="t-cur">0:00</span><input id="seek" type="range" min="0" max="0" value="0" step="1" aria-label="Position"><span id="t-dur">0:00</span></div>
+    </div>
+    <div class="volume"><span aria-hidden="true">&#128266;</span><input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume"></div>
+  </footer>
+  <script src="app.js"></script>
+</body>
+</html>

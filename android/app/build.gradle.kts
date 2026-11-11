@@ -1,0 +1,408 @@
+@file:Suppress("UnstableApiUsage")
+
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.Properties
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+
+plugins {
+    id("com.android.application")
+    kotlin("android")
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.ksp)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.rikka.tools.refine)
+}
+
+// Request signing: release builds derive their key from ZEMER_SIG_MASTER (CI) or the Gradle property
+// `zemerSigMaster`; debug builds from ZEMER_SIG_DEV_MASTER or `zemerSigDevMaster`, under the key id
+// "d<versionCode>". Never put either in this repo. A build type without its key source gets no native signer and
+// never signs.
+val zemerSigMaster: String? = (providers.environmentVariable("ZEMER_SIG_MASTER").orNull
+    ?: providers.gradleProperty("zemerSigMaster").orNull)?.trim()?.takeIf { it.isNotEmpty() }
+val zemerSigDevMaster: String? = (providers.environmentVariable("ZEMER_SIG_DEV_MASTER").orNull
+    ?: providers.gradleProperty("zemerSigDevMaster").orNull)?.trim()?.takeIf { it.isNotEmpty() }
+// The release key is bound to the release signing certificate (see the key task); `-PzemerSigUnbound=true` builds a
+// release signer without the binding, for local experiments only.
+val zemerSigUnbound = providers.gradleProperty("zemerSigUnbound").orNull == "true"
+val releaseKeystore = file("keystore/release.keystore")
+
+// One key task per build type ("Release" -> id "<versionCode>", "Debug" -> id "d<versionCode>"), each writing its
+// own header directory, so a debug build can never contain the release key. Each derives the key for THIS version
+// (every versionCode bump rotates it; a master never enters an APK) and writes it masked (XOR a fresh random mask,
+// the masked bytes stored permuted) into build/generated/zemersig/<type>/; it never exists in the source tree.
+// The release key is also XORed with SHA-256 of the release signing certificate, which the native signer reads from
+// the running APK, so an APK signed with another certificate computes a wrong key. A release build that cannot read
+// the certificate fails rather than ship an unbound key. Debug keys stay unbound (dev keystores differ per machine).
+val zemerSigKeyTasks = listOf(Triple("Release", zemerSigMaster, ""), Triple("Debug", zemerSigDevMaster, "d")).map { (type, masterB64, idPrefix) ->
+    val outDir = layout.buildDirectory.dir("generated/zemersig/${type.lowercase()}")
+    val keyId = provider { idPrefix + android.defaultConfig.versionCode.toString() }
+    // locals, so the task action captures no script object (configuration cache)
+    val bindToCert = type == "Release" && !zemerSigUnbound
+    val keystoreFile = releaseKeystore
+    tasks.register("generateZemerSigKey$type") {
+        onlyIf { masterB64 != null }
+        outputs.dir(outDir)
+        outputs.upToDateWhen { false }
+        doLast {
+            // key(id) = HMAC-SHA256(master, "zemer-sig-v1:" + id) - the contract in sig.mjs. (Local to the action: a
+            // script-level function would capture the build script, which the configuration cache cannot store.)
+            fun zemerSigDerive(master: ByteArray, id: String): ByteArray =
+                Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(master, "HmacSHA256")) }
+                    .doFinal("zemer-sig-v1:$id".toByteArray(Charsets.UTF_8))
+
+            // the pinned derivation vectors (sig-vectors.json: TEST master bytes 1..32 / dev master bytes 33..64),
+            // so a build never ships a wrong key
+            check(Base64.getEncoder().encodeToString(zemerSigDerive(ByteArray(32) { (it + 1).toByte() }, "38")) ==
+                "gDhyBVnQwI6nDbPtk9rGKWaHzp62KbbX45tmpa6xc5Q=") { "signing key derivation self-check failed" }
+            check(Base64.getEncoder().encodeToString(zemerSigDerive(ByteArray(32) { (it + 33).toByte() }, "d38")) ==
+                "IuioTz03Y/ddlNfuNnvCqx1Ebo4DmwkoZwRqCv+nBQI=") { "dev signing key derivation self-check failed" }
+            val master = Base64.getDecoder().decode(masterB64!!)
+            check(master.size == 32) { "the $type signing master must be base64 of exactly 32 bytes" }
+            val key = zemerSigDerive(master, keyId.get())
+            val cert = if (bindToCert) {
+                val storePassword = System.getenv("STORE_PASSWORD")
+                val alias = System.getenv("KEY_ALIAS")
+                check(keystoreFile.isFile && storePassword != null && alias != null) {
+                    "the release signing key must be bound to the release certificate, but the keystore " +
+                        "(STORE_PASSWORD, KEY_ALIAS) is not available; -PzemerSigUnbound=true builds an unbound local key"
+                }
+                val store = KeyStore.getInstance("PKCS12").apply { keystoreFile.inputStream().use { load(it, storePassword.toCharArray()) } }
+                val certificate = checkNotNull(store.getCertificate(alias)) { "no certificate for the release key alias" }
+                MessageDigest.getInstance("SHA-256").digest(certificate.encoded)
+            } else {
+                ByteArray(32)
+            }
+            val random = SecureRandom()
+            val mask = ByteArray(32).also(random::nextBytes)
+            val order = (0 until 32).shuffled(random)
+            val masked = ByteArray(32)
+            for (i in 0 until 32) masked[order[i]] = (key[i].toInt() xor mask[i].toInt() xor cert[i].toInt()).toByte()
+            fun arr(b: ByteArray) = b.joinToString(",") { "0x%02x".format(it.toInt() and 0xff) }
+            outDir.get().file("zemer_sig_key.h").asFile.apply { parentFile.mkdirs() }.writeText(
+                """
+                |// Generated by generateZemerSigKey$type - never commit.
+                |#define ZEMER_SIG_KEY_LEN 32
+                |static const unsigned char zemer_sig_a[32] = {${arr(masked)}};
+                |static const unsigned char zemer_sig_b[32] = {${arr(mask)}};
+                |static const unsigned char zemer_sig_p[32] = {${order.joinToString(",")}};
+                |#define ZEMER_SIG_CERT_BOUND ${if (cert.any { it != 0.toByte() }) 1 else 0}
+                |static const unsigned char zemer_sig_cert[32] = {${arr(cert)}};
+                |""".trimMargin()
+            )
+        }
+    }
+}
+
+android {
+    // Screenshot tests of the Stalow design (StalowDesignScreenshotTest): Robolectric renders the
+    // Compose screens on the JVM. They run only with -PstalowScreenshots=<output dir>.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all { test ->
+                val shots = (project.findProperty("stalowScreenshots") ?: "").toString()
+                test.systemProperty("stalow.screenshots", shots)
+                // Normal test runs skip the screenshot test (it needs Robolectric's Android runtime).
+                if (shots.isBlank()) test.filter.excludeTestsMatching("*StalowDesignScreenshotTest*")
+            }
+        }
+    }
+    namespace = "com.jtech.zemer"
+    compileSdk = 36
+
+    defaultConfig {
+        // Stalow Music has its own app id, so it installs next to (and can never be updated by) the original app.
+        applicationId = "com.stalow.music"
+        minSdk = 26
+        targetSdk = 36
+        // Raise versionCode by 1 for every release you publish; phones only update to a higher number.
+        versionCode = 9
+        versionName = "1.8"
+        buildConfigField("String", "ARCHITECTURE", "\"universal\"")
+        // Git commit of this build — the nightly-updater's identity (every main build shares the
+        // same versionName, so "is a newer nightly available" is a SHA comparison, not a version
+        // one). Empty when git is unavailable, which makes any nightly count as an update.
+        val commitHash = runCatching {
+            providers.exec { commandLine("git", "rev-parse", "HEAD") }
+                .standardOutput.asText.get().trim()
+        }.getOrDefault("")
+        buildConfigField("String", "COMMIT_HASH", "\"$commitHash\"")
+        // CI run number of this build (GITHUB_RUN_NUMBER, monotonic per workflow). The nightly
+        // updater refuses a nightly with a LOWER number, so a mirror announcing an older build can
+        // never install a downgrade (the 36 -> 34 Room crash). 0 outside CI = unknown, SHA-only rule.
+        val runNumber = providers.environmentVariable("GITHUB_RUN_NUMBER").orNull?.toIntOrNull() ?: 0
+        buildConfigField("int", "RUN_NUMBER", "$runNumber")
+        // Stalow Music updates: the app reads this file to find new versions (see StalowUpdateFeed).
+        // Change with -PupdateFeedUrl=... ; an empty value switches update checks off.
+        val updateFeedUrl = (project.findProperty("updateFeedUrl") as String?) ?: "https://stalow.netlify.app/downloads/stalow-music.json"
+        buildConfigField("String", "UPDATE_FEED_URL", "\"$updateFeedUrl\"")
+        val googleTokenExchangeUrl = (project.findProperty("googleTokenExchangeUrl") as String?) ?: ""
+        buildConfigField("String", "GOOGLE_TOKEN_EXCHANGE_URL", "\"$googleTokenExchangeUrl\"")
+        // Content server (content.zemer.io): the content allow-sets, reports and synced content-filter
+        // preferences (see ZemerContentClient / ContentServerApi). Override with -PcontentMirrorUrl=.
+        val contentMirrorUrl = (project.findProperty("contentMirrorUrl") as String?) ?: ""
+        buildConfigField("String", "CONTENT_MIRROR_URL", "\"$contentMirrorUrl\"")
+        // Zemer lyrics resolver (the search server's /lyrics/resolve). Override with
+        // -PzemerLyricsBaseUrl=http://10.0.2.2:7700 (emulator) or http://127.0.0.1:7700 + `adb reverse tcp:7700 tcp:7700`.
+        val zemerLyricsBaseUrl = (project.findProperty("zemerLyricsBaseUrl") as String?) ?: ""
+        buildConfigField("String", "ZEMER_LYRICS_BASE_URL", "\"$zemerLyricsBaseUrl\"")
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables.useSupportLibrary = true
+        multiDexEnabled = true
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
+    }
+
+    androidResources {
+        localeFilters += listOf("en", "iw", "fr")
+    }
+
+    // Release signing: your own key, read from keystore.properties next to this file (never commit it).
+    // keystore.properties holds: storeFile=..., storePassword=..., keyAlias=..., keyPassword=...
+    val keystoreProps = Properties().apply {
+        val f = file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        create("release") {
+            keystoreProps.getProperty("storeFile")?.let { storeFile = file(it) }
+            storePassword = keystoreProps.getProperty("storePassword") ?: System.getenv("STORE_PASSWORD")
+            keyAlias = keystoreProps.getProperty("keyAlias") ?: System.getenv("KEY_ALIAS")
+            keyPassword = keystoreProps.getProperty("keyPassword") ?: System.getenv("KEY_PASSWORD")
+            storeType = "PKCS12"
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isCrunchPngs = false
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isDebuggable = true
+            // Uses Android's standard debug key (created automatically on first build).
+        }
+    }
+
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    kotlin {
+        jvmToolchain(21)
+        compilerOptions {
+            freeCompilerArgs.add("-Xannotation-default-target=param-property")
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    lint {
+        lintConfig = file("lint.xml")
+        warningsAsErrors = false
+        abortOnError = false
+        checkDependencies = false
+        disable += setOf(
+            "GradleDependency",
+            "NewerVersionAvailable"
+        )
+    }
+
+    androidResources {
+        generateLocaleConfig = true
+    }
+
+
+    if (zemerSigMaster != null || zemerSigDevMaster != null) {
+        externalNativeBuild {
+            cmake {
+                path = file("src/main/cpp/zemersig/CMakeLists.txt")
+                version = "3.22.1"
+            }
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+            // The FCast sender-SDK native lib is NOT bundled (~5.3 MB) — it is downloaded on demand from
+            // ZemerTeam/zemer-cast when the user enables casting (see CastNativeLibLoader).
+            excludes += "**/libfcast_sender_sdk.so"
+            keepDebugSymbols += listOf(
+                "**/libandroidx.graphics.path.so",
+                "**/libdatastore_shared_counter.so"
+            )
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/CONTRIBUTORS.md"
+            excludes += "META-INF/LICENSE.md"
+        }
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+configurations.all {
+    exclude(group = "com.google.protobuf", module = "protobuf-java")
+    // No Play Integrity anywhere in Zemer (Firebase Auth declares it but never calls it).
+    exclude(group = "com.google.android.play", module = "integrity")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-opt-in=kotlin.RequiresOptIn"
+        )
+        suppressWarnings.set(false)
+    }
+}
+
+dependencies {
+    implementation("com.zemer:cipher")
+
+    implementation(libs.guava)
+    implementation(libs.concurrent.futures)
+
+    implementation(libs.activity)
+    implementation(libs.hilt.navigation)
+    implementation(libs.datastore)
+
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.util)
+    implementation(libs.compose.ui.tooling)
+    implementation(libs.compose.animation)
+    implementation(libs.compose.reorderable)
+
+    implementation(libs.viewmodel)
+    implementation(libs.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+
+    implementation(libs.material3)
+    implementation(libs.palette)
+    implementation(libs.materialKolor)
+
+    implementation(libs.coil)
+    implementation(libs.coil.network.okhttp)
+    // SVG decode for the server-generated curated-playlist covers (/zemer-playlists/cover).
+    implementation(libs.coil.svg)
+
+    implementation(libs.ucrop)
+
+    implementation(libs.shimmer)
+    implementation(libs.lottie.compose)
+
+    implementation(libs.media3)
+    implementation(libs.media3.session)
+    implementation(libs.media3.okhttp)
+    implementation(libs.media3.ui)
+    implementation(libs.squigglyslider)
+
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
+    implementation(libs.room.ktx)
+
+    implementation(libs.hilt)
+    ksp(libs.hilt.compiler)
+
+    implementation(project(":innertube"))
+
+    // Cover-art and metadata embedding is pure Kotlin (utils/mp4 + utils/ogg) - no native/external deps
+
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.serialization.json)
+    // CIO engine for the standalone ktor clients (Zemer servers, tracking, recognition, updater, …)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+    // Gzip for the content mirror (ZemerContentClient): the /whitelist payload is ~432 KB raw / ~70 KB gzipped.
+    implementation(libs.ktor.client.encoding)
+    // Ed25519 for the content signatures (net/ContentSignature): the platform has none before API 33.
+    implementation(libs.tink.android)
+
+    // In-app donations (payments/DonationClient): Stripe card field + PaymentLauncher, never a browser
+    implementation(libs.stripe.payments.core)
+
+    // Self-update installers (Shizuku / root); hidden PackageInstaller APIs via refine
+    compileOnly(libs.rikka.hidden.stub)
+    implementation(libs.rikka.tools.refine.runtime)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    implementation(libs.lsposed.hiddenapibypass)
+    implementation(libs.libsu.core)
+
+    coreLibraryDesugaring(libs.desugaring)
+
+    implementation(libs.timber)
+
+    testImplementation(libs.junit)
+    // Ktor on the OkHttp engine, so tests can resolve a Zemer host to a local server (ZemerHeadersTest)
+    testImplementation(libs.ktor.client.okhttp)
+    androidTestImplementation(libs.junit)
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    // Real org.json for JVM unit tests (Android's bundled org.json is a "not mocked" stub) so the
+    // JewishStatus response parsers (StatusesApi) can be tested without Robolectric.
+    testImplementation("org.json:json:20240303")
+    // Robolectric + Compose UI test: the Stalow design screenshot test (opt-in, see testOptions).
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4:1.11.4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.11.4")
+
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+
+    implementation("org.futo.gitlab.videostreaming.fcast-sdk-jitpack:sender-sdk-minimal:0.4.0") {
+        exclude(group = "net.java.dev.jna")
+    }
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
+}
+
+// Each build type's native signer is built only with its own master and points at its own key header; without
+// it the CMake project builds nothing (ZEMER_SIG_SKIP), so that build type never signs.
+androidComponents {
+    onVariants { variant ->
+        val (master, type) = if (variant.buildType == "debug") zemerSigDevMaster to "debug" else zemerSigMaster to "release"
+        variant.externalNativeBuild?.arguments?.add(
+            if (master != null) "-DZEMER_SIG_KEY_DIR=${layout.buildDirectory.dir("generated/zemersig/$type").get().asFile.absolutePath}"
+            else "-DZEMER_SIG_SKIP=ON"
+        )
+    }
+}
+
+// The CMake tasks of the request signer need the generated key headers first.
+tasks.configureEach {
+    if (name.startsWith("configureCMake") || name.startsWith("buildCMake")) dependsOn(zemerSigKeyTasks)
+}

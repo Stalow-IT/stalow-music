@@ -1,0 +1,4 @@
+# Dead-resource ratchet baseline: one "type/name" per line; may only shrink. Every new dead
+# resource fails CI immediately. Currently EMPTY - the previously grandfathered mood_and_genres*
+# and Stats-screen strings were deleted outright once zemer-app detached from Metrolist and
+# values/strings.xml became editable, so nothing needs grandfathering.

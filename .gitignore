@@ -1,0 +1,15 @@
+# Never commit the release signing key or its passwords (keep them in a safe place).
+*.jks
+*.keystore
+keystore.properties
+local.properties
+
+# Build output
+build/
+.gradle/
+android/release/
+*.apk
+windows/node_modules/
+windows/dist/
+windows/release/
+!windows/build/
