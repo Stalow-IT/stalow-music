@@ -4,7 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
 const { loadArtists, Catalog } = require('./catalog');
-const { Player } = require('./player');
+const { Player, PAGE_SCRIPT, STATUS_PREFIX } = require('./player');
+const { DownloadManager } = require('./download-manager');
 const { searchAll, keepFullPlaylists } = require('./search');
 const updater = require('./updater');
 const settingsSchema = require('./settings');
@@ -45,21 +46,12 @@ const cleanSession = (s) => {
   return { queue, index: Math.min(Math.max(0, s.index | 0), queue.length - 1), time: Math.max(0, Number(s.time) || 0), radio: r };
 };
 
-// Downloads: songs saved to Music\Stalow Music while they play once (see downloads.js and player.js).
+// Downloads: each song is saved in the background by its own silent player (see download-manager.js) to
+// Music\Stalow Music; up to three at once, whatever is playing in the app.
 let downloads = null;
-let recording = null; // { song, chunks, size } for the one song being saved
-ipcMain.on('rec:chunk', (e, id, data) => {
-  if (!recording || !player || e.sender !== player.win.webContents || id !== recording.song.id || !(data instanceof ArrayBuffer)) return;
-  recording.size += data.byteLength;
-  if (recording.size > MAX_BYTES) { player.cancelRecord(); return; }
-  recording.chunks.push(Buffer.from(data));
-});
-ipcMain.on('rec:done', (e, id, ok) => {
-  if (!recording || !player || e.sender !== player.win.webContents || id !== recording.song.id) return;
-  const r = recording; recording = null;
-  if (!ok) return send('download', { id, state: 'failed', reason: 'stopped' });
-  try { downloads.save(r.song, Buffer.concat(r.chunks)); send('download', { id, state: 'done' }); } catch (err) { send('download', { id, state: 'failed', reason: err.message }); }
-});
+let manager = null;
+ipcMain.on('rec:chunk', (e, id, data) => { if (manager && manager.owns(e.sender)) manager.onChunk(e.sender, id, data); });
+ipcMain.on('rec:done', (e, id, ok) => { if (manager && manager.owns(e.sender)) manager.onDone(e.sender, id, ok); });
 
 // Settings > Storage: the cache limit is set when the app starts.
 try { app.commandLine.appendSwitch('disk-cache-size', String(readSettings().maxCacheMB * 1024 * 1024)); } catch { /* defaults */ }
@@ -165,17 +157,13 @@ const handlers = {
     if (!want || typeof want.videoId !== 'string') return null;
     return getLyrics(want, readSettings().lyricsProviders, { api });
   },
-  'download:start': async (song) => {
-    const clean = cleanSong(song);
-    if (!clean) throw new Error('Not a song');
-    if (downloads.get(clean.id)) return { already: true };
-    if (recording) player.cancelRecord();
-    recording = { song: clean, chunks: [], size: 0 };
-    const ok = await player.record(clean.id);
-    if (!ok) { recording = null; throw new Error('The song has to be playing to save it'); }
-    return { started: true };
+  'download:add': async (songs) => {
+    const list = (Array.isArray(songs) ? songs : [songs]).map(cleanSong).filter(Boolean).slice(0, 500);
+    return { added: manager.add(list) };
   },
-  'download:cancel': async () => { if (recording) { recording = null; player.cancelRecord(); } },
+  'download:cancel': async (id) => manager.cancel(typeof id === 'string' ? id : null),
+  'download:retry': async () => manager.retry(),
+  'download:jobs': async () => manager.list(),
   'download:list': async () => downloads.list(),
   'download:remove': async (id) => { if (typeof id === 'string') downloads.remove(id); },
   'download:openFolder': async () => { fs.mkdirSync(downloads.folder, { recursive: true }); await shell.openPath(downloads.folder); },
@@ -280,14 +268,25 @@ function applySettings(s, changed = null) {
 app.whenReady().then(async () => {
   const startSettings = readSettings();
   downloads = new Downloads(path.join(app.getPath('userData'), 'downloads.json'), path.join(app.getPath('music'), 'Stalow Music'));
+  manager = new DownloadManager({
+    downloads, pageScript: PAGE_SCRIPT, statusPrefix: STATUS_PREFIX, maxBytes: MAX_BYTES,
+    queueFile: path.join(app.getPath('userData'), 'download-queue.json'),
+    createWindow: () => new BrowserWindow({
+      show: false, width: 800, height: 600, title: 'Stalow Music - download',
+      webPreferences: { partition: 'persist:ytmusic', backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'player-preload.js') },
+    }),
+    onChange: (jobs) => send('download-jobs', jobs),
+    onSaved: (song) => send('download', { id: song.id, state: 'done' }),
+  });
   catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts });
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
     else if (ev.state === 'paused' || ev.state === 'ended') updateThumbar(false);
     send('player', ev);
   });
-  await player.init();
+  await player.init(); // also sets up the YouTube Music session (consent, ad blocking) the download players share
   applySettings(startSettings);
+  setTimeout(() => manager.pump(), 3000); // carry on with songs left waiting when the app was closed
   player.win.webContents.on('did-navigate', (_e, url) => {
     // after signing in, hide the window again as soon as YouTube Music opens
     if (/^https:\/\/music\.youtube\.com\//.test(url) && player.win.isVisible() && player.signingIn) { player.signingIn = false; player.hide(); }
@@ -300,4 +299,4 @@ app.whenReady().then(async () => {
 });
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.on('before-quit', () => { if (player) player.destroy(); });
+app.on('before-quit', () => { if (manager) manager.destroy(); if (player) player.destroy(); });

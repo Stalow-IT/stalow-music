@@ -122,7 +122,8 @@ function applyShuffleToQueue() {
 
 // ---------- downloaded songs play from their file (also without internet) ----------
 let downloaded = new Map(); // id -> download entry (with a file: url)
-let downloading = null; // { id } while the playing song is being saved
+let jobs = []; // background downloads: { id, song, state: waiting|saving|failed, progress, duration }
+const jobFor = (id) => jobs.find((j) => j.id === id);
 async function loadDownloads() {
   try { downloaded = new Map((await stalow.downloads()).map((d) => [d.id, d])); } catch { downloaded = new Map(); }
 }
@@ -161,24 +162,38 @@ localAudio.addEventListener('pause', () => { if (!localAudio.ended) emitLocal('p
 localAudio.addEventListener('ended', () => emitLocal('ended'));
 localAudio.addEventListener('error', () => { if (localAudio.getAttribute('src')) emitLocal('error'); });
 
-/** Download: saves the playing song while it plays once from the start (see the Download button). */
-async function downloadCurrent() {
-  const s = state.queue[state.index];
-  if (!s || downloaded.has(s.id)) return;
-  if (state.notLoaded || local) await playAt(state.index);
+/**
+ * Download: songs go into the download list and are saved in the background, three at a time, by silent players
+ * (each song takes about its own length to save), whatever is playing.
+ */
+async function downloadSongs(songs) {
+  const list = (Array.isArray(songs) ? songs : [songs]).filter((x) => x && x.type !== 'artist' && !downloaded.has(x.id));
+  if (!list.length) return showNotice(t('download_all_saved'));
   try {
-    await stalow.download(s);
-    downloading = { id: s.id };
-  } catch (e) { downloading = null; showNotice(t('download_failed', e.message)); }
-  if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); // eslint-disable-line no-undef
+    const r = await stalow.download(list);
+    showNotice(r.added ? t('download_added', r.added) : t('download_all_saved'));
+  } catch (e) { showNotice(t('download_failed', e.message)); }
 }
-async function cancelDownload() { downloading = null; await stalow.cancelDownload(); if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); } // eslint-disable-line no-undef
-stalow.onDownload(async (ev) => {
-  if (downloading && downloading.id === ev.id) downloading = null;
-  if (ev.state === 'done') { await loadDownloads(); showNotice(t('download_done')); }
-  else if (ev.state === 'failed') showNotice(t(ev.reason === 'stopped' ? 'download_stopped' : 'download_failed', ev.reason || ''));
-  if (currentView && ['nowplaying', 'downloads'].includes(currentView[0])) views[currentView[0]](currentView[1]);
+async function cancelDownload(id) { await stalow.cancelDownload(id); }
+stalow.onDownloadJobs((list) => {
+  jobs = list || [];
+  if (typeof onJobsChanged === 'function') onJobsChanged(); // eslint-disable-line no-undef
+  if (currentView && currentView[0] === 'downloads') renderJobs();
 });
+stalow.onDownload(async (ev) => {
+  if (ev.state === 'done') {
+    await loadDownloads();
+    if (currentView && currentView[0] === 'downloads') views.downloads();
+  }
+});
+/** A small Download button for a song row / card: saved, in the list, or Download. */
+function downloadBadge(song) {
+  if (downloaded.has(song.id)) return el('span', { class: 'add done', title: t('downloaded'), text: '✓' });
+  const j = jobFor(song.id);
+  if (j) return el('span', { class: 'add', title: t('download_waiting'), text: j.state === 'saving' ? `${pct(j)}%` : '…' });
+  return el('span', { class: 'add', role: 'button', title: t('action_download'), 'aria-label': t('action_download'), onclick: (e) => { e.stopPropagation(); downloadSongs([song]).then(() => { e.target.textContent = '…'; }); } }, icon('backup'));
+}
+const pct = (j) => (j.duration ? Math.min(99, Math.floor((j.progress / j.duration) * 100)) : 0);
 function showNotice(text) {
   hideNotice();
   $('#main').prepend(el('div', { id: 'play-notice', class: 'notice' }, el('span', { text })));
@@ -486,6 +501,7 @@ function songRows(songs, { onPlay } = {}) {
   el('div', { class: 'ellipsis' }, el('div', { class: 'rt ellipsis', text: s.title }), el('div', { class: 'muted ellipsis', text: artistNames(s) })),
   el('span', { class: 'd', text: s.duration ? fmt(s.duration) : '' }),
   el('span', { class: 'add-group' },
+    downloadBadge(s),
     el('span', { class: 'add', role: 'button', title: t('play_next'), text: t('play_next'), onclick: (e) => { e.stopPropagation(); playNext(s); } }),
     el('span', { class: 'add', role: 'button', title: t('add_to_queue'), text: '+ ' + t('queue'), onclick: (e) => { e.stopPropagation(); addToQueue(s); } })))));
 }
@@ -588,7 +604,8 @@ const views = {
         el('div', { class: 'actions' },
           songs.length ? el('button', { class: 'btn', title: t('shuffle'), onclick: () => playQueue(shuffled(songs), 0) }, icon('play'), t('play')) : '',
           songs.length ? el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(songs), 0) }, icon('shuffle'), t('shuffle')) : '',
-          songs.length ? el('button', { class: 'btn secondary', onclick: () => playQueue([songs[0]], 0, songs[0].id) }, icon('radio'), t('radio')) : ''))),
+          songs.length ? el('button', { class: 'btn secondary', onclick: () => playQueue([songs[0]], 0, songs[0].id) }, icon('radio'), t('radio')) : '',
+          songs.length ? el('button', { class: 'btn secondary', onclick: () => downloadSongs(songs) }, icon('backup'), t('download_all')) : ''))),
       ...p.sections.flatMap((s) => {
         const sSongs = s.items.filter((x) => x.type === 'song');
         const others = s.items.filter((x) => x.type !== 'song');
@@ -607,7 +624,8 @@ const views = {
     view.replaceChildren(
       el('div', { class: 'head' }, img(p.album.thumbnail, p.album.title), el('div', {}, el('div', { class: 'overline', text: t('album') }), el('h1', { text: p.album.title }), el('div', { class: 'muted', text: artistNames(p.album) }),
         el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(p.songs, 0) }, icon('play'), t('play')),
-          el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(p.songs), 0) }, icon('shuffle'), t('shuffle'))))),
+          el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(p.songs), 0) }, icon('shuffle'), t('shuffle')),
+          el('button', { class: 'btn secondary', onclick: () => downloadSongs(p.songs) }, icon('backup'), t('download_all'))))),
       songRows(p.songs));
   },
   async playlist(id) {
@@ -616,7 +634,8 @@ const views = {
     view.replaceChildren(
       el('div', { class: 'head' }, img(p.playlist.thumbnail || (p.songs[0] && p.songs[0].thumbnail), p.playlist.title), el('div', {}, el('div', { class: 'overline', text: t('playlist') }), el('h1', { text: p.playlist.title }),
         el('div', { class: 'muted', text: t('n_songs_approved', p.songs.length) }),
-        el('div', { class: 'actions' }, p.songs.length ? el('button', { class: 'btn', onclick: () => playQueue(p.songs, 0) }, icon('play'), t('play')) : ''))),
+        el('div', { class: 'actions' }, p.songs.length ? el('button', { class: 'btn', onclick: () => playQueue(p.songs, 0) }, icon('play'), t('play')) : '',
+          p.songs.length ? el('button', { class: 'btn secondary', onclick: () => downloadSongs(p.songs) }, icon('backup'), t('download_all')) : ''))),
       p.songs.length ? songRows(p.songs) : el('div', { class: 'status', text: t('playlist_empty') }));
   },
   async queue() {
@@ -634,12 +653,14 @@ const views = {
         list.length ? el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')) : '',
         list.length ? el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle')) : '',
         el('button', { class: 'btn secondary', text: t('open_folder'), onclick: () => stalow.openDownloadsFolder() })),
+      el('div', { id: 'jobs' }),
       list.length ? el('p', { class: 'muted', text: t('downloads_count', list.length, (total / 1048576).toFixed(1)) }) : el('div', { class: 'status', text: t('downloads_empty') }),
       list.length ? el('div', { class: 'rows' }, list.map((d, i) => el('div', { class: 'row qrow' + (state.queue[state.index] && state.queue[state.index].id === d.id ? ' playing' : '') },
         el('span', { class: 'n', text: String(i + 1) }), img(d.thumbnail, d.title),
         el('button', { class: 'qmain ellipsis', onclick: () => playQueue(list, i) }, el('div', { class: 'rt ellipsis', text: d.title }), el('div', { class: 'muted ellipsis', text: nowLine(d) })),
         el('span', { class: 'd', text: d.duration ? fmt(d.duration) : '' }),
         el('button', { class: 'icon-btn', title: t('remove_download'), 'aria-label': t('remove_download'), onclick: async () => { if (window.confirm(t('remove_download_confirm', d.title))) { await stalow.removeDownload(d.id); views.downloads(); } } }, icon('close'))))) : '');
+    renderJobs();
   },
 };
 
@@ -659,6 +680,30 @@ function back() {
   const [n, a] = navHistory[navHistory.length - 1];
   go(n, a, false);
 }
+/** The download list on the Downloads page: being saved (with progress), waiting, failed. */
+function renderJobs() {
+  const box = document.getElementById('jobs');
+  if (!box) return;
+  if (!jobs.length) return box.replaceChildren();
+  const failed = jobs.filter((j) => j.state === 'failed').length;
+  box.replaceChildren(
+    el('div', { class: 'section-head' }, el('h2', { text: t('downloading_n', jobs.length - failed) }),
+      el('div', { class: 'actions' },
+        failed ? el('button', { class: 'btn secondary', text: t('try_again'), onclick: () => stalow.retryDownloads() }) : '',
+        el('button', { class: 'btn secondary', text: t('cancel_all'), onclick: () => cancelDownload(null) }))),
+    el('p', { class: 'muted', text: t('downloading_hint') }),
+    el('div', { class: 'rows' }, jobs.map((j) => el('div', { class: 'row qrow' },
+      el('span', { class: 'n mono', text: j.state === 'saving' ? `${pct(j)}%` : j.state === 'failed' ? '!' : '…' }),
+      img(j.song.thumbnail, j.song.title),
+      el('div', { class: 'ellipsis' }, el('div', { class: 'rt ellipsis', text: j.song.title }),
+        el('div', { class: 'muted ellipsis', text: j.state === 'saving' ? t('download_saving_n', fmt(j.progress), fmt(j.duration)) : j.state === 'failed' ? t('download_failed_short', j.reason) : t('download_waiting') }),
+        j.state === 'saving' ? el('div', { class: 'bar' }, el('span', { class: 'bar-fill', 'data-w': String(pct(j)) })) : ''),
+      el('span', { class: 'd', text: j.song.duration ? fmt(j.song.duration) : '' }),
+      el('button', { class: 'icon-btn', title: t('cancel'), 'aria-label': t('cancel'), onclick: () => cancelDownload(j.id) }, icon('close'))))));
+  // progress bar widths (no inline styles: the page's security policy forbids them)
+  box.querySelectorAll('.bar-fill').forEach((b) => { b.style.width = b.dataset.w + '%'; });
+}
+
 /** Up next: the queue with the playing song marked; reorder, remove, play. Used by Queue and Now playing. */
 function queueList({ compact = false } = {}) {
   const rows = state.queue.map((s, i) => {

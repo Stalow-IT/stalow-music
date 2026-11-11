@@ -221,3 +221,11 @@ svg { width: 20px; height: 20px; flex: none; }
 :root[dir="rtl"] .qmain { text-align: right; }
 .qbtns { display: flex; gap: 6px; }
 .add-group { display: flex; gap: 6px; }
+/* download list */
+.add svg { width: 14px; height: 14px; vertical-align: -2px; }
+.add.done { color: var(--mint); border-color: var(--mint); }
+:root[data-theme="light"] .add.done { color: var(--blue); border-color: var(--blue); }
+.bar { height: 4px; border-radius: 2px; background: var(--track); margin-top: 6px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; width: 0; background: var(--mint); transition: width .5s; }
+:root[data-theme="light"] .bar-fill { background: var(--blue); }
+#jobs .row { grid-template-columns: 40px 44px 1fr auto auto; }

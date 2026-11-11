@@ -110,6 +110,10 @@ EN = {
  'download_failed': 'Could not save the song: {0}', 'download_done': 'Song saved. It now plays without internet.',
  'download_stopped': 'The song was not saved because it did not play to the end.', 'stalow_up_next': 'Up next',
  'downloads_folder': 'Downloads folder', 'downloads_folder_desc': 'Saved songs are in Music\\Stalow Music',
+ 'download_all_saved': 'Already downloaded.', 'download_added': '{0} added to Downloads. They are saved in the background, three at a time.',
+ 'download_all': 'Download all', 'downloading_n': 'Downloading ({0})', 'try_again': 'Try again', 'cancel_all': 'Cancel all', 'cancel': 'Cancel',
+ 'downloading_hint': 'Saved in the background by silent players, three at a time; each song takes about its own length. You can keep listening.',
+ 'download_saving_n': 'Saving… {0} of {1}', 'download_failed_short': 'Not saved ({0})', 'download_waiting': 'Waiting to be saved', 'download_saving_pct': 'Saving… {0}% (press to cancel)',
  'credits': 'Credits', 'credits_desc': 'Based on Zemer by ZemerTeam and Metrolist; free software under the GNU GPL v3.', 'open': 'Open',
 }
 
@@ -169,6 +173,10 @@ HE = {
  'download_failed': 'לא ניתן לשמור את השיר: {0}', 'download_done': 'השיר נשמר. עכשיו הוא מתנגן גם בלי אינטרנט.',
  'download_stopped': 'השיר לא נשמר כי הוא לא התנגן עד הסוף.', 'stalow_up_next': 'הבאים בתור',
  'downloads_folder': 'תיקיית ההורדות', 'downloads_folder_desc': 'שירים שמורים נמצאים ב-Music\\Stalow Music',
+ 'download_all_saved': 'כבר הורד.', 'download_added': '{0} נוספו להורדות. הם נשמרים ברקע, שלושה בכל פעם.',
+ 'download_all': 'הורד הכול', 'downloading_n': 'בהורדה ({0})', 'try_again': 'נסה שוב', 'cancel_all': 'בטל הכול', 'cancel': 'ביטול',
+ 'downloading_hint': 'נשמרים ברקע על ידי נגנים שקטים, שלושה בכל פעם; כל שיר לוקח בערך את אורכו. אפשר להמשיך להאזין.',
+ 'download_saving_n': 'שומר… {0} מתוך {1}', 'download_failed_short': 'לא נשמר ({0})', 'download_waiting': 'ממתין לשמירה', 'download_saving_pct': 'שומר… {0}% (לחצו לביטול)',
  'approved_artists': 'אמנים מאושרים', 'approved_artists_desc': '{0} אמנים, גרסת רשימה {1}', 'credits': 'קרדיטים', 'credits_desc': 'מבוסס על Zemer של ZemerTeam ועל Metrolist; תוכנה חופשית לפי GNU GPL v3.', 'open': 'פתח',
 }
 

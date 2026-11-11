@@ -267,4 +267,4 @@ class Player {
   destroy() { this.quitting = true; if (this.win) this.win.destroy(); }
 }
 
-module.exports = { Player, PAGE_SCRIPT, BLOCKED_URLS };
+module.exports = { Player, PAGE_SCRIPT, BLOCKED_URLS, STATUS_PREFIX };

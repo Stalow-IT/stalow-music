@@ -46,8 +46,10 @@ views.nowplaying = async () => {
   // Download: Download / Saving… (Cancel) / Downloaded
   let dl;
   if (downloaded.has(s.id)) dl = el('button', { class: 'btn secondary', disabled: true }, icon('backup'), t('downloaded')); // eslint-disable-line no-undef
-  else if (downloading && downloading.id === s.id) dl = el('button', { class: 'btn secondary', onclick: cancelDownload }, icon('backup'), t('download_saving')); // eslint-disable-line no-undef
-  else dl = el('button', { class: 'btn secondary', onclick: downloadCurrent }, icon('backup'), t('action_download')); // eslint-disable-line no-undef
+  else if (jobFor(s.id)) { // eslint-disable-line no-undef
+    const j = jobFor(s.id); // eslint-disable-line no-undef
+    dl = el('button', { class: 'btn secondary', id: 'np-dl', onclick: () => cancelDownload(s.id) }, icon('backup'), j.state === 'saving' ? t('download_saving_pct', pct(j)) : j.state === 'failed' ? t('download_failed_short', j.reason) : t('download_waiting')); // eslint-disable-line no-undef
+  } else dl = el('button', { class: 'btn secondary', onclick: () => downloadSongs([s]) }, icon('backup'), t('action_download')); // eslint-disable-line no-undef
 
   const tabBtn = (id, label) => el('button', { class: 'chip' + (npTab === id ? ' on' : ''), onclick: () => { npTab = id; try { localStorage.setItem('stalow.npTab', id); } catch { /* ignore */ } views.nowplaying(); } }, label);
   const side = el('div', { id: 'np-side' });
@@ -60,7 +62,7 @@ views.nowplaying = async () => {
       el('div', { class: 'np-seek' }, seek, el('div', { class: 'np-times mono' }, el('span', { id: 'np-cur', text: fmt(state.time) }), el('span', { id: 'np-dur', text: fmt(state.duration || s.duration) }))),
       el('div', { class: 'buttons np-buttons' }, shuffleBtn, ctl('prev', t('previous'), () => document.getElementById('btn-prev').click()), playBtn, ctl('next', t('next'), () => document.getElementById('btn-next').click()), repeatBtn),
       el('div', { class: 'actions np-actions' }, dl,
-        downloading && downloading.id === s.id ? el('span', { class: 'muted small', text: t('download_saving_hint') }) : '')),
+        jobFor(s.id) ? el('span', { class: 'muted small', text: t('downloading_hint') }) : '')), // eslint-disable-line no-undef
     el('div', { class: 'np-right' },
       el('div', { class: 'chips' }, tabBtn('upnext', t('stalow_up_next')), tabBtn('lyrics', t('stalow_lyrics'))),
       side)));
@@ -143,3 +145,13 @@ function onPlayerTime(time) { // eslint-disable-line no-unused-vars
 setInterval(() => { if (state.playing && isNowPlayingOpen()) onPlayerTime(state.time); }, 400);
 
 /* exported onNowPlayingChanged, onPlayerTime, fmt, icon, go */
+
+/** Called by app.js when the download list changes: keeps the Download button's progress current. */
+function onJobsChanged() { // eslint-disable-line no-unused-vars
+  const s = currentSong();
+  if (!isNowPlayingOpen() || !s) return;
+  const j = jobFor(s.id); // eslint-disable-line no-undef
+  const b = document.getElementById('np-dl');
+  if (j && b && j.state === 'saving') b.lastChild.textContent = t('download_saving_pct', pct(j)); // eslint-disable-line no-undef
+  else if (!!j !== !!b || (!j && downloaded.has(s.id))) views.nowplaying(); // eslint-disable-line no-undef
+}
