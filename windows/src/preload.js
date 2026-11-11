@@ -10,6 +10,7 @@ const call = async (channel, arg) => {
 contextBridge.exposeInMainWorld('stalow', {
   search: (q) => call('catalog:search', q),
   artists: (text) => call('catalog:artists', text),
+  channels: (category, text) => call('catalog:channels', { category, text }),
   home: (recentArtistIds) => call('catalog:home', recentArtistIds),
   artist: (id) => call('catalog:artist', id),
   album: (id) => call('catalog:album', id),

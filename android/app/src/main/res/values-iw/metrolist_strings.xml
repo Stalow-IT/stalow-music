@@ -27,6 +27,11 @@
     <string name="floating_mini_player_desc">הצג את נגן המיני הצף מעל המסכים</string>
     <string name="featured_videos">סרטונים מומלצים</string>
     <string name="videos">סרטונים</string>
+    <string name="shiurim">שיעורים</string>
+    <string name="shiurim_empty">ערוצי שיעורים יופיעו כאן</string>
+    <string name="search_shiurim">חיפוש שיעורים…</string>
+    <string name="video_channels_empty">ערוצי וידאו יופיעו כאן</string>
+    <string name="search_video_channels">חיפוש ערוצי וידאו…</string>
     <string name="crop_album_art">חיתוך תמונת האלבום</string>
     <string name="uploaded_playlist">הועלו</string>
     <string name="remove_from_cache">הסרה מהמטמון</string>

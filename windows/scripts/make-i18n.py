@@ -6,7 +6,9 @@ import json, re, sys, html
 from pathlib import Path
 
 EN = {
- 'home': 'Home', 'search': 'Search', 'artists': 'Artists', 'queue': 'Queue', 'settings': 'Settings', 'back': 'Back',
+ 'home': 'Home', 'search': 'Search', 'artists': 'Artists', 'podcasts': 'Podcasts', 'shiurim': 'Shiurim', 'videos': 'Videos',
+ 'channel': 'Channel', 'filter_channels_hint': 'Filter {0} channels', 'no_channels_match': 'No channels match.',
+ 'stalow_approved_channel': 'Approved channel', 'channel_not_approved': 'This channel is not in the approved list.', 'queue': 'Queue', 'settings': 'Settings', 'back': 'Back',
  'previous': 'Previous', 'next': 'Next', 'play': 'Play', 'pause': 'Pause', 'shuffle': 'Shuffle', 'repeat': 'Repeat', 'radio': 'Radio',
  'now_playing': 'Now playing', 'position': 'Position', 'volume': 'Volume', 'nothing_playing': 'Nothing playing',
  'repeat_mode_off': 'Repeat mode off', 'repeat_mode_one': 'Repeat current song', 'repeat_mode_all': 'Repeat queue',
@@ -107,6 +109,9 @@ EN = {
 
 # Hebrew for the texts the Android app does not have (written for Stalow Music for Windows).
 HE = {
+ 'podcasts': 'פודקאסטים', 'shiurim': 'שיעורים', 'videos': 'סרטונים', 'channel': 'ערוץ',
+ 'filter_channels_hint': 'סינון {0} ערוצים', 'no_channels_match': 'אין ערוצים מתאימים.',
+ 'stalow_approved_channel': 'ערוץ מאושר', 'channel_not_approved': 'הערוץ הזה לא ברשימה המאושרת.',
  'home': 'בית', 'search': 'חיפוש', 'artists': 'אמנים', 'queue': 'תור', 'settings': 'הגדרות', 'back': 'חזרה',
  'previous': 'הקודם', 'next': 'הבא', 'play': 'נגן', 'pause': 'השהה', 'shuffle': 'ערבוב', 'repeat': 'חזרה על שירים', 'radio': 'רדיו',
  'now_playing': 'מתנגן כעת', 'position': 'מיקום', 'volume': 'עוצמה', 'nothing_playing': 'שום דבר לא מתנגן',

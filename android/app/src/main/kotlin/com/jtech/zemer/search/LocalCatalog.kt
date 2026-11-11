@@ -5,6 +5,7 @@ import com.jtech.zemer.db.entities.ArtistWhitelistEntity
 import com.jtech.zemer.utils.ContentFilterConfig
 import com.jtech.zemer.utils.ContentFilterState
 import com.jtech.zemer.utils.WhitelistCache
+import com.jtech.zemer.utils.approvedChannelPasses
 import com.jtech.zemer.utils.filterWhitelisted
 import com.metrolist.innertube.YouTube
 import com.metrolist.innertube.YouTube.SearchFilter
@@ -140,9 +141,12 @@ class LocalCatalog(private val database: MusicDatabase) {
 
     // ---- pages -------------------------------------------------------------------------------------------
 
-    /** An artist page with every section filtered; null (not available) for an artist that is not approved. */
+    /**
+     * An artist page with every section filtered; null (not available) for an artist that is not approved.
+     * An approved channel (Podcasts, Shiurim or Videos) that is not a music artist opens as [channel].
+     */
     suspend fun artist(id: String): ArtistPage? {
-        if (!isApprovedArtist(id)) return null
+        if (!isApprovedArtist(id)) return if (approvedChannelPasses(listOf(id), config)) channel(id) else null
         val page = YouTube.artist(id).getOrElse { throw it.asIo("artist") }
         val sections = page.sections.mapNotNull { section ->
             val filtered = section.items.filterWhitelisted(database, config, fallbackArtistId = id)
@@ -151,6 +155,21 @@ class LocalCatalog(private val database: MusicDatabase) {
                 val keep = keepFullPlaylists(playlists, ownPage = true).map { it.id }.toSet()
                 filtered.filter { it !is PlaylistItem || it.id in keep }
             }
+            if (items.isEmpty()) null else section.copy(items = items)
+        }
+        return page.copy(sections = sections)
+    }
+
+    /**
+     * An approved channel's page (Podcasts, Shiurim or Videos, see [com.jtech.zemer.utils.StalowChannels]):
+     * the channel vouches for its own uploads and playlists, so those pass; anything else on the page still
+     * needs an approved artist. Null for a channel that is not approved.
+     */
+    suspend fun channel(id: String): ArtistPage? {
+        if (!approvedChannelPasses(listOf(id), config)) return null
+        val page = YouTube.artist(id).getOrElse { throw it.asIo("channel") }
+        val sections = page.sections.mapNotNull { section ->
+            val items = section.items.filterWhitelisted(database, config, fallbackArtistId = id)
             if (items.isEmpty()) null else section.copy(items = items)
         }
         return page.copy(sections = sections)

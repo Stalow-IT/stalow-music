@@ -3,7 +3,7 @@ const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session }
 const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
-const { loadArtists, Catalog } = require('./catalog');
+const { loadArtists, loadChannels, Catalog } = require('./catalog');
 const { Player } = require('./player');
 const { searchAll, keepFullPlaylists } = require('./search');
 const updater = require('./updater');
@@ -88,13 +88,15 @@ function updateThumbar(playing) {
 const handlers = {
   'catalog:search': async (q) => searchAll(api, catalog, q),
   'catalog:artists': async (text) => catalog.findArtists(text),
+  'catalog:channels': async ({ category, text } = {}) => catalog.channelList(category, text),
   'catalog:home': async (recentArtistIds) => ({ artists: catalog.homeArtists(recentArtistIds, 18) }),
   'catalog:artist': async (id) => {
-    if (!catalog.isApprovedArtist(id)) return { notApproved: true };
+    if (!catalog.canOpen(id)) return { notApproved: true };
     const page = await api.artist(id);
-    const known = catalog.artists.find((a) => a.id === id);
+    const known = catalog.artists.find((a) => a.id === id) || catalog.channels.get(id);
+    page.isChannel = !catalog.isApprovedArtist(id);
     page.artist.title = page.artist.title || (known && known.name) || '';
-    page.artist.thumbnail = page.artist.thumbnail || (known && known.thumbnail) || '';
+    page.artist.thumbnail = page.artist.thumbnail || (known && (known.thumbnail || known.thumbnailUrl)) || '';
     page.sections = await Promise.all(page.sections.map(async (s) => {
       const items = catalog.filterItems(s.items, id);
       const full = new Set((await keepFullPlaylists(api, catalog, items.filter((x) => x.type === 'playlist'), true)).map((p) => p.id));
@@ -247,7 +249,7 @@ function applySettings(s, changed = null) {
 
 app.whenReady().then(async () => {
   const startSettings = readSettings();
-  catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts });
+  catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts, channels: loadChannels() });
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
     else if (ev.state === 'paused' || ev.state === 'ended') updateThumbar(false);

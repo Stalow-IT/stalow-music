@@ -11,11 +11,25 @@ function loadArtists(file = path.join(__dirname, '..', 'data', 'artists.json')) 
   return { version: json.version || 0, artists };
 }
 
+const CHANNEL_CATEGORIES = ['podcasts', 'shiurim', 'videos'];
+
+/** The approved Podcasts, Shiurim and Videos channels (same file as the Android app). A channel can be in several. */
+function loadChannels(file = path.join(__dirname, '..', 'data', 'channels.json')) {
+  let json = {};
+  try { json = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { json = {}; }
+  const out = { version: json.version || 0 };
+  for (const c of CHANNEL_CATEGORIES) {
+    out[c] = (Array.isArray(json[c]) ? json[c] : []).filter((x) => x && typeof x.id === 'string' && x.id.startsWith('UC') && x.name);
+  }
+  return out;
+}
+
 class Catalog {
-  constructor(list, { allowFemale = false, blockPodcasts = false } = {}) {
+  constructor(list, { allowFemale = false, blockPodcasts = false, channels = null } = {}) {
     this.version = list.version;
     this.artists = list.artists;
     this.blockPodcasts = !!blockPodcasts;
+    this.channelLists = channels || { version: 0, podcasts: [], shiurim: [], videos: [] };
     this.setAllowFemale(allowFemale);
   }
 
@@ -28,7 +42,28 @@ class Catalog {
     this.allowFemale = !!allow;
     this.allowed = new Map(this.artists.filter((a) => this.allowFemale || !a.isFemale).map((a) => [a.id, a]));
     this.matcher = new ArtistMatcher([...this.allowed.values()].map((a) => ({ id: a.id, names: [a.name, a.altName].filter(Boolean) })));
+    this.channels = new Map();
+    for (const c of CHANNEL_CATEGORIES) {
+      for (const ch of this.channelLists[c] || []) {
+        if ((this.allowFemale || !ch.isFemale) && !this.channels.has(ch.id)) this.channels.set(ch.id, ch);
+      }
+    }
   }
+
+  /** An approved Podcasts, Shiurim or Videos channel: it vouches for its own uploads. */
+  isApprovedChannel(id) { return !!id && this.channels.has(id); }
+
+  /** One category's approved channels whose name contains the text, A to Z, as cards. */
+  channelList(category, text = '') {
+    const q = (text || '').trim().toLowerCase();
+    return (this.channelLists[category] || []).filter((ch) => this.channels.has(ch.id))
+      .filter((ch) => !q || ch.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+      .map((ch) => ({ type: 'artist', id: ch.id, title: ch.name, thumbnail: ch.thumbnailUrl || '', isChannel: true }));
+  }
+
+  /** An artist page or a channel page may be opened. */
+  canOpen(id) { return this.isApprovedArtist(id) || this.isApprovedChannel(id); }
 
   /** Approved artists the text refers to: nicknames ("mbd"), initials, loose or Hebrew spellings, typos. */
   matchArtists(text, limit = 8) {
@@ -42,8 +77,8 @@ class Catalog {
   songAllowed(song, fallbackArtistId = null) {
     if (this.blockPodcasts && song && song.isPodcast) return false;
     const ids = (song.artists || []).map((a) => a.id).filter(Boolean);
-    if (!ids.length) return this.isApprovedArtist(fallbackArtistId);
-    return ids.some((id) => this.isApprovedArtist(id));
+    if (!ids.length) return this.canOpen(fallbackArtistId);
+    return ids.some((id) => this.canOpen(id)) || this.isApprovedChannel(fallbackArtistId);
   }
 
   albumAllowed(album, fallbackArtistId = null) { return this.songAllowed(album, fallbackArtistId); }
@@ -57,8 +92,8 @@ class Catalog {
       let keep = null;
       if (it.type === 'song') keep = this.songAllowed(it, fallbackArtistId) ? it : null;
       else if (it.type === 'album') keep = this.albumAllowed(it, fallbackArtistId) ? it : null;
-      else if (it.type === 'artist') keep = this.isApprovedArtist(it.id) ? it : null;
-      else if (it.type === 'playlist') keep = this.isApprovedArtist(it.author && it.author.id) ? it : { ...it, thumbnail: '' };
+      else if (it.type === 'artist') keep = this.canOpen(it.id) ? it : null;
+      else if (it.type === 'playlist') keep = this.canOpen(it.author && it.author.id) ? it : { ...it, thumbnail: '' };
       if (keep) { seen.add(it.type + it.id); out.push(keep); }
     }
     return out;
@@ -94,4 +129,4 @@ class Catalog {
   }
 }
 
-module.exports = { loadArtists, Catalog };
+module.exports = { loadArtists, loadChannels, Catalog };
