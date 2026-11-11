@@ -1,11 +1,13 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
 const { loadArtists, Catalog } = require('./catalog');
 const { Player, PAGE_SCRIPT, STATUS_PREFIX } = require('./player');
 const { DownloadManager } = require('./download-manager');
+const { Sync, SHARED_SETTINGS } = require('./sync');
+const os = require('os');
 const { searchAll, keepFullPlaylists } = require('./search');
 const updater = require('./updater');
 const settingsSchema = require('./settings');
@@ -27,7 +29,7 @@ const writeSettings = (s) => writeRaw(settingsFile(), settingsSchema.normalize(s
 
 // Listen history and search history, each in its own file (Settings > Privacy, and backups).
 const dataFile = (name) => path.join(app.getPath('userData'), `${name}.json`);
-const DATA = { history: 'history', searchHistory: 'search-history' };
+const DATA = { history: 'history', searchHistory: 'search-history', likes: 'likes' };
 const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(x.id) ? {
   type: 'song', id: x.id, title: String(x.title || '').slice(0, 300),
   artists: (Array.isArray(x.artists) ? x.artists : []).filter((a) => a && typeof a.name === 'string').slice(0, 10).map((a) => ({ id: typeof a.id === 'string' ? a.id : null, name: a.name.slice(0, 200) })),
@@ -35,6 +37,8 @@ const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(
   thumbnail: typeof x.thumbnail === 'string' && /^https:\/\//.test(x.thumbnail) ? x.thumbnail : '',
   duration: typeof x.duration === 'number' ? x.duration : null,
   ...(typeof x.playedAt === 'number' ? { playedAt: x.playedAt } : {}),
+  ...(typeof x.likedAt === 'number' ? { likedAt: x.likedAt } : {}),
+  ...(x.unliked === true ? { unliked: true } : {}),
 } : null);
 const cleanHistory = (list) => (Array.isArray(list) ? list.map(cleanSong).filter(Boolean).slice(0, 500) : []);
 const cleanSearches = (list) => (Array.isArray(list) ? list.filter((q) => q && typeof q.q === 'string' && q.q.trim()).map((q) => ({ q: q.q.trim().slice(0, 200), at: typeof q.at === 'number' ? q.at : Date.now() })).slice(0, 200) : []);
@@ -50,6 +54,7 @@ const cleanSession = (s) => {
 // Music\Stalow Music; up to three at once, whatever is playing in the app.
 let downloads = null;
 let manager = null;
+let sync = null;
 ipcMain.on('rec:chunk', (e, id, data) => { if (manager && manager.owns(e.sender)) manager.onChunk(e.sender, id, data); });
 ipcMain.on('rec:done', (e, id, ok) => { if (manager && manager.owns(e.sender)) manager.onDone(e.sender, id, ok); });
 
@@ -146,16 +151,24 @@ const handlers = {
     const all = { ...readSettings(), [key]: v };
     writeSettings(all);
     applySettings(all, key);
+    if (sync && SHARED_SETTINGS.includes(key)) sync.soon();
     return v;
   },
   'data:get': async (name) => { if (!DATA[name]) throw new Error('Unknown data'); return readRaw(dataFile(DATA[name]), []); },
   'data:set': async ({ name, value } = {}) => {
     if (!DATA[name]) throw new Error('Unknown data');
-    writeRaw(dataFile(DATA[name]), name === 'history' ? cleanHistory(value) : cleanSearches(value));
+    writeRaw(dataFile(DATA[name]), name === 'searchHistory' ? cleanSearches(value) : cleanHistory(value));
+    if (sync && name !== 'searchHistory') sync.soon();
   },
+  // Settings > Sync (phone <-> PC)
+  'sync:info': async () => sync.info(),
+  'sync:create': async () => sync.create(),
+  'sync:join': async (code) => sync.join(code),
+  'sync:leave': async (erase) => sync.leave(!!erase),
+  'sync:now': async () => sync.syncNow(),
   'lyrics:get': async (want) => {
     if (!want || typeof want.videoId !== 'string') return null;
-    return getLyrics(want, readSettings().lyricsProviders, { api });
+    return getLyrics(want, readSettings().lyricsProviders, { api, fetchImpl: (url, init) => net.fetch(url, init) });
   },
   'download:add': async (songs) => {
     const list = (Array.isArray(songs) ? songs : [songs]).map(cleanSong).filter(Boolean).slice(0, 500);
@@ -214,7 +227,14 @@ const handlers = {
     const s = readSession(); if (s) writeSession({ ...s, resume: !!resume });
     installUpdate();
   },
-  'app:saveSession': async (s) => { const clean = cleanSession(s); if (clean) { const old = readSession(); writeSession({ ...clean, resume: !!(old && old.resume) }); } },
+  'app:saveSession': async (s) => {
+    const clean = cleanSession(s);
+    if (!clean) return;
+    const old = readSession();
+    // [at] changes when the song changes (not every few seconds), so other devices see a fresh "continue" offer
+    const sameSong = old && old.queue && old.queue[old.index] && old.queue[old.index].id === clean.queue[clean.index].id;
+    writeSession({ ...clean, resume: !!(old && old.resume), at: sameSong && old.at ? old.at : Date.now() });
+  },
   'app:loadSession': async () => {
     const s = readSession();
     if (s && s.resume) writeSession({ ...s, resume: false }); // only the first start after an update resumes
@@ -276,8 +296,38 @@ app.whenReady().then(async () => {
       webPreferences: { partition: 'persist:ytmusic', backgroundThrottling: false, contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'player-preload.js') },
     }),
     onChange: (jobs) => send('download-jobs', jobs),
-    onSaved: (song) => send('download', { id: song.id, state: 'done' }),
+    onSaved: (song) => { send('download', { id: song.id, state: 'done' }); if (sync) sync.soon(); },
   });
+  sync = new Sync({
+    file: path.join(app.getPath('userData'), 'sync.json'),
+    deviceName: `PC (${os.hostname()})`.slice(0, 60),
+    fetchImpl: (url, init) => net.fetch(url, init), // Chromium's network: the system proxy and certificates, like the rest of the app
+    local: {
+      history: () => cleanHistory(readRaw(dataFile(DATA.history), [])),
+      setHistory: (list) => { writeRaw(dataFile(DATA.history), cleanHistory(list)); send('synced', { history: true }); },
+      likes: () => cleanHistory(readRaw(dataFile(DATA.likes), [])),
+      setLikes: (list) => { writeRaw(dataFile(DATA.likes), cleanHistory(list)); send('synced', { likes: true }); },
+      downloads: () => downloads.list(),
+      queueDownloads: (songs) => manager.add(songs.map(cleanSong).filter(Boolean)),
+      settings: () => readSettings(),
+      applySettings: (changes) => {
+        const all = { ...readSettings() };
+        for (const [k, v] of Object.entries(changes)) { const c = settingsSchema.clean(k, v); if (c !== undefined) all[k] = c; }
+        writeSettings(all);
+        for (const k of Object.keys(changes)) applySettings(all, k);
+        send('synced', { settings: true });
+      },
+      session: () => {
+        const sess = readSession();
+        if (!sess || !sess.queue || !sess.queue.length) return null;
+        const from = Math.max(0, sess.index - 20);
+        return { queue: sess.queue.slice(from, from + 100), index: sess.index - from, time: Math.floor(sess.time || 0), at: sess.at || 0 };
+      },
+    },
+    onChange: (info) => send('sync', info),
+  });
+  sync.start();
+  setTimeout(() => sync.syncNow().catch(() => {}), 8000);
   catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts });
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
@@ -299,4 +349,4 @@ app.whenReady().then(async () => {
 });
 
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-app.on('before-quit', () => { if (manager) manager.destroy(); if (player) player.destroy(); });
+app.on('before-quit', () => { if (sync) sync.stop(); if (manager) manager.destroy(); if (player) player.destroy(); });

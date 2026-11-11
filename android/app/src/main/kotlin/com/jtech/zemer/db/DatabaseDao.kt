@@ -1187,9 +1187,36 @@ interface DatabaseDao {
         previewSize: Int = Int.MAX_VALUE,
     ): Flow<List<Playlist>>
 
+    // By play time (newest first), not by insert order: plays synced from the PC arrive later than they happened.
     @Transaction
-    @Query("SELECT * FROM event ORDER BY rowId DESC")
+    @Query("SELECT * FROM event ORDER BY timestamp DESC, rowId DESC")
     fun events(): Flow<List<EventWithSong>>
+
+    /** Sync with your PC: each song's latest play, newest first. Blocking; call off-main. */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM event WHERE id IN (
+            SELECT MAX(e1.id) FROM event e1
+            WHERE e1.timestamp = (SELECT MAX(e2.timestamp) FROM event e2 WHERE e2.songId = e1.songId)
+            GROUP BY e1.songId
+        ) ORDER BY timestamp DESC LIMIT :limit
+        """
+    )
+    fun latestPlayPerSong(limit: Int): List<EventWithSong>
+
+    /** Sync with your PC: the liked songs. Blocking; call off-main. */
+    @Transaction
+    @Query("SELECT * FROM song WHERE liked = 1")
+    fun likedSongsBlocking(): List<Song>
+
+    /** Sync with your PC: the downloaded songs (not videos or episodes). Blocking; call off-main. */
+    @Transaction
+    @Query("SELECT * FROM song WHERE isDownloaded = 1 AND isEpisode = 0 AND isVideo = 0")
+    fun downloadedSongsBlocking(): List<Song>
+
+    @Query("SELECT COUNT(*) FROM song WHERE isDownloaded = 1")
+    fun downloadedCount(): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM event")
     fun eventCount(): Flow<Int>

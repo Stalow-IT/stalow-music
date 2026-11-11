@@ -229,3 +229,15 @@ svg { width: 20px; height: 20px; flex: none; }
 .bar-fill { display: block; height: 100%; width: 0; background: var(--mint); transition: width .5s; }
 :root[data-theme="light"] .bar-fill { background: var(--blue); }
 #jobs .row { grid-template-columns: 40px 44px 1fr auto auto; }
+/* player bar: song + like */
+.now-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.now-wrap .now { flex: 1; min-width: 0; }
+.like-btn { background: none; border: 0; color: var(--muted); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; padding: 0; flex: none; }
+.like-btn:hover { background: var(--raised); }
+.like-btn.on, .like-big.on { color: var(--mint); }
+.like-btn.on svg, .like-big.on svg { fill: currentColor; }
+:root[data-theme="light"] .like-btn.on, :root[data-theme="light"] .like-big.on { color: #e11d74; }
+/* sync */
+.sync-code { font-size: 20px; letter-spacing: 0.06em; padding: 10px 14px; border: 1px dashed var(--border); border-radius: 12px; background: var(--bg); user-select: all; }
+.continue { margin: 6px 0 10px; max-width: 760px; }
+.continue .overline { color: var(--blue); }

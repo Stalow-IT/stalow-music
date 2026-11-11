@@ -15,6 +15,7 @@
       <button data-view="artists" data-icon="artist" class="nav"><span data-i18n="artists">Artists</span></button>
       <button data-view="nowplaying" data-icon="audio" class="nav"><span data-i18n="now_playing">Now playing</span></button>
       <button data-view="queue" data-icon="queue" class="nav"><span data-i18n="queue">Queue</span></button>
+      <button data-view="liked" data-icon="heart" class="nav"><span data-i18n="liked_songs">Liked songs</span></button>
       <button data-view="downloads" data-icon="backup" class="nav"><span data-i18n="downloads">Downloads</span></button>
       <button data-view="settings" data-icon="settings" class="nav"><span data-i18n="settings">Settings</span></button>
     </nav>
@@ -27,10 +28,13 @@
   </main>
 
   <footer class="player">
+    <div class="now-wrap">
     <button class="now" id="btn-now">
       <span id="np-art-box"></span>
       <span class="np-text"><span id="np-title" class="ellipsis block">Nothing playing</span><span id="np-artist" class="ellipsis muted block"></span></span>
     </button>
+    <button id="btn-like" class="like-btn" data-icon="heart" hidden></button>
+    </div>
     <div class="controls">
       <div class="buttons">
         <button id="btn-shuffle" class="toggle" data-icon="shuffle" aria-pressed="false"></button>

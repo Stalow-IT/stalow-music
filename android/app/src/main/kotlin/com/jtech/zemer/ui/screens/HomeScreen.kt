@@ -223,6 +223,11 @@ fun HomeScreen(
     val podcastGenresHomeViewModel: com.jtech.zemer.viewmodels.PodcastGenresHomeViewModel = hiltViewModel()
     val homePodcastGenres by podcastGenresHomeViewModel.genres.collectAsState()
     val continueListeningViewModel: com.jtech.zemer.viewmodels.ContinueListeningViewModel = hiltViewModel()
+    // Settings > Sync with your PC: what the PC is playing, offered as "Continue from PC"
+    val pcSyncViewModel: com.jtech.zemer.ui.screens.settings.PcSyncViewModel = hiltViewModel()
+    val pcSessions by pcSyncViewModel.pcSync.remoteSessions.collectAsState()
+    var pcContinued by remember { mutableStateOf(0) }
+    val pcOffer = remember(pcSessions, mediaMetadata?.id, pcContinued) { pcContinueOffer(pcSessions) }
     val continueEpisodes by continueListeningViewModel.episodes.collectAsState()
     // Settings → Appearance owns these toggles (there is deliberately no in-row hide affordance).
     val (showHomeGenres, _) = rememberPreference(ShowHomeGenresKey, defaultValue = true)
@@ -595,6 +600,16 @@ fun HomeScreen(
                         onClick = onOpenSearch,
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
                     )
+                }
+
+                pcOffer?.let { offer ->
+                    item(key = "pc_continue", contentType = "header") {
+                        HomePcContinueCard(
+                            offer = offer,
+                            onContinue = { playerConnection.playQueue(pcContinueQueue(offer)); pcContinued++ },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).animateItem(),
+                        )
+                    }
                 }
 
                 // Stalow: "Recently played" (most recent first) is the first row on Home.

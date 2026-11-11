@@ -292,6 +292,44 @@ function rememberSearch(q) {
 function forgetSearch(q) { searches = searches.filter((x) => x.q !== q); stalow.setData('searchHistory', searches).catch(() => {}); }
 async function clearSearches() { searches = []; await stalow.setData('searchHistory', []); }
 
+// ---------- liked songs (shared with the phone when sync is on) ----------
+let likes = []; // { ...song, likedAt, unliked? } - an unliked song is kept (marked) so the phone learns of it too
+async function loadLikes() { try { likes = await stalow.getData('likes'); } catch { likes = []; } if (!Array.isArray(likes)) likes = []; }
+const isLiked = (id) => likes.some((x) => x.id === id && !x.unliked);
+function likedSongs() { return likes.filter((x) => !x.unliked).sort((a, b) => (b.likedAt || 0) - (a.likedAt || 0)); }
+async function toggleLike(song) {
+  if (!song) return;
+  const keep = { type: 'song', id: song.id, title: song.title, artists: song.artists || [], album: song.album || (song.albumName ? { id: '', title: song.albumName } : null), thumbnail: song.thumbnail || '', duration: song.duration || null, likedAt: Date.now() };
+  const liked = isLiked(song.id);
+  likes = [liked ? { ...keep, unliked: true } : keep, ...likes.filter((x) => x.id !== song.id)];
+  await stalow.setData('likes', likes);
+  renderNowBar();
+  if (currentView && currentView[0] === 'nowplaying') views.nowplaying();
+  if (currentView && currentView[0] === 'liked') views.liked();
+}
+
+// ---------- sync with the phone ----------
+let syncInfo = { state: 'off', remoteSessions: {} };
+stalow.onSync((info) => { syncInfo = info || syncInfo; if (currentView && currentView[0] === 'settingsPage' && currentView[1] === 'sync') views.settingsPage('sync'); });
+stalow.onSynced(async (what) => {
+  if (what.history) await loadHistory();
+  if (what.likes) await loadLikes();
+  if (what.settings) { Object.assign(S, await stalow.settings()); applySetting(); }
+  if (currentView && ['home', 'liked', 'nowplaying'].includes(currentView[0])) rerender();
+});
+/** The newest thing another device (the phone) is playing, if it is newer than what this PC played last. */
+function continueOffer() {
+  const mine = state.sessionAt || 0;
+  const list = Object.values(syncInfo.remoteSessions || {}).filter((x) => x && Array.isArray(x.queue) && x.queue.length && x.at > mine && Date.now() - x.at < 2 * 86400000);
+  return list.sort((a, b) => b.at - a.at)[0] || null;
+}
+function continueFrom(sess) {
+  const index = Math.min(Math.max(0, sess.index | 0), sess.queue.length - 1);
+  state.sessionAt = sess.at;
+  state.pendingSeek = { id: sess.queue[index].id, time: sess.time || 0 };
+  playQueue(sess.queue, index);
+}
+
 function addToQueue(song) { state.queue.push(song); if (state.index < 0) playAt(state.queue.length - 1); renderQueueIfOpen(); }
 async function playAt(i) {
   if (i < 0 || i >= state.queue.length) return;
@@ -299,6 +337,7 @@ async function playAt(i) {
   state.notLoaded = false;
   state.index = i;
   state.time = 0;
+  state.sessionAt = Date.now();
   saveSession(state.pendingSeek ? state.pendingSeek.time : 0);
   const s = state.queue[i];
   renderNowBar();
@@ -316,6 +355,8 @@ function renderNowBar() {
   const s = state.queue[state.index];
   if (!s) { $('#np-art-box').replaceChildren(); $('#np-title').textContent = t('nothing_playing'); $('#np-artist').textContent = ''; return; }
   $('#np-art-box').replaceChildren(img(s.thumbnail, s.title, { isVideo: s.isVideo }));
+  const lb = $('#btn-like');
+  if (lb) { lb.hidden = false; lb.classList.toggle('on', isLiked(s.id)); lb.title = t(isLiked(s.id) ? 'unlike' : 'like'); lb.setAttribute('aria-label', lb.title); lb.setAttribute('aria-pressed', String(isLiked(s.id))); }
   $('#np-title').textContent = s.title; $('#np-title').title = s.title || '';
   const line = nowLine(s);
   $('#np-artist').textContent = line; $('#np-artist').title = line;
@@ -465,6 +506,7 @@ $('#btn-prev').addEventListener('click', prev);
 $('#btn-shuffle').addEventListener('click', async () => { await setSetting('shuffle', !S.shuffle); applyShuffleToQueue(); });
 $('#btn-repeat').addEventListener('click', () => setSetting('repeat', S.repeat === 'off' ? 'all' : S.repeat === 'all' ? 'one' : 'off'));
 $('#btn-now').addEventListener('click', () => { if (state.index >= 0) go('nowplaying'); });
+$('#btn-like').addEventListener('click', () => toggleLike(state.queue[state.index]));
 $('#seek').addEventListener('input', () => { state.seeking = true; $('#t-cur').textContent = fmt($('#seek').value); });
 $('#seek').addEventListener('change', () => {
   if (state.pendingSeek) state.pendingSeek.time = Number($('#seek').value);
@@ -531,9 +573,15 @@ const views = {
     const { artists } = await stalow.home(recentIds);
     const recent = S.showRecentlyPlayed ? listenHistory.slice(0, 12) : [];
     const played = artists.filter((a) => recentIds.includes(a.id)).length;
+    const offer = continueOffer();
+    const cur = offer ? offer.queue[Math.min(offer.index | 0, offer.queue.length - 1)] : null;
     view.replaceChildren(
       el('h1', { text: t('welcome') }),
       el('p', { class: 'muted', text: t('welcome_hint') }),
+      cur ? el('div', { class: 'group continue' }, el('button', { class: 'item category', onclick: () => continueFrom(offer) },
+        el('div', { class: 'grow' }, el('div', { class: 'top-pic' }, img(cur.thumbnail, cur.title)),
+          el('div', {}, el('div', { class: 'overline', text: t('continue_from', offer.device || t('your_phone')) }), el('div', { class: 'it', text: cur.title }), el('div', { class: 'id', text: artistNames(cur) }))),
+        el('span', { class: 'btn' }, icon('play'), t('continue')))) : '',
       recent.length ? sectionHead(t('keep_listening')) : '',
       recent.length ? cards(recent) : '',
       S.showGenres ? sectionHead(t('genres')) : '',
@@ -637,6 +685,15 @@ const views = {
         el('div', { class: 'actions' }, p.songs.length ? el('button', { class: 'btn', onclick: () => playQueue(p.songs, 0) }, icon('play'), t('play')) : '',
           p.songs.length ? el('button', { class: 'btn secondary', onclick: () => downloadSongs(p.songs) }, icon('backup'), t('download_all')) : ''))),
       p.songs.length ? songRows(p.songs) : el('div', { class: 'status', text: t('playlist_empty') }));
+  },
+  async liked() {
+    const list = likedSongs();
+    view.replaceChildren(el('h1', { text: t('liked_songs') }),
+      list.length ? el('div', { class: 'actions' },
+        el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle')),
+        el('button', { class: 'btn secondary', onclick: () => downloadSongs(list) }, icon('backup'), t('download_all'))) : '',
+      list.length ? songRows(list) : el('div', { class: 'status', text: t('liked_empty') }));
   },
   async queue() {
     if (!state.queue.length) return status(t('queue_empty'));

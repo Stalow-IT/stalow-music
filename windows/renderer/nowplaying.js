@@ -61,7 +61,9 @@ views.nowplaying = async () => {
       el('div', { class: 'np-sub', text: nowLine(s) }),
       el('div', { class: 'np-seek' }, seek, el('div', { class: 'np-times mono' }, el('span', { id: 'np-cur', text: fmt(state.time) }), el('span', { id: 'np-dur', text: fmt(state.duration || s.duration) }))),
       el('div', { class: 'buttons np-buttons' }, shuffleBtn, ctl('prev', t('previous'), () => document.getElementById('btn-prev').click()), playBtn, ctl('next', t('next'), () => document.getElementById('btn-next').click()), repeatBtn),
-      el('div', { class: 'actions np-actions' }, dl,
+      el('div', { class: 'actions np-actions' },
+        el('button', { class: 'btn secondary like-big' + (isLiked(s.id) ? ' on' : ''), 'aria-pressed': String(isLiked(s.id)), onclick: () => toggleLike(s) }, icon('heart'), t(isLiked(s.id) ? 'liked' : 'like')), // eslint-disable-line no-undef
+        dl,
         jobFor(s.id) ? el('span', { class: 'muted small', text: t('downloading_hint') }) : '')), // eslint-disable-line no-undef
     el('div', { class: 'np-right' },
       el('div', { class: 'chips' }, tabBtn('upnext', t('stalow_up_next')), tabBtn('lyrics', t('stalow_lyrics'))),

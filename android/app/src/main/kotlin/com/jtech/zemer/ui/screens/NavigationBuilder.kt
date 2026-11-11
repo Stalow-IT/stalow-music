@@ -31,6 +31,7 @@ import com.jtech.zemer.ui.screens.playlist.TopPlaylistScreen
 import com.jtech.zemer.ui.screens.playlist.ZemerCuratedPlaylistScreen
 import com.jtech.zemer.ui.screens.recognition.RecognitionHistoryScreen
 import com.jtech.zemer.ui.screens.search.OnlineSearchResult
+import com.jtech.zemer.ui.screens.settings.PcSyncSettings
 import com.jtech.zemer.ui.screens.settings.AboutScreen
 import com.jtech.zemer.ui.screens.settings.DonateScreen
 import com.jtech.zemer.ui.screens.settings.AndroidAutoSettings
@@ -471,6 +472,9 @@ fun NavGraphBuilder.navigationBuilder(
     }
     composable("settings/privacy") {
         PrivacySettings(navController, scrollBehavior)
+    }
+    composable("settings/pc_sync") {
+        PcSyncSettings(navController, scrollBehavior)
     }
     composable("settings/backup_restore") {
         BackupAndRestore(navController, scrollBehavior)
