@@ -12,10 +12,16 @@ function loadArtists(file = path.join(__dirname, '..', 'data', 'artists.json')) 
 }
 
 class Catalog {
-  constructor(list, { allowFemale = false } = {}) {
+  constructor(list, { allowFemale = false, blockPodcasts = false } = {}) {
     this.version = list.version;
     this.artists = list.artists;
+    this.blockPodcasts = !!blockPodcasts;
     this.setAllowFemale(allowFemale);
+  }
+
+  /** Content filters (Settings > Content): podcast episodes can be hidden everywhere. */
+  setFilters({ blockPodcasts } = {}) {
+    if (blockPodcasts !== undefined) this.blockPodcasts = !!blockPodcasts;
   }
 
   setAllowFemale(allow) {
@@ -34,6 +40,7 @@ class Catalog {
 
   /** A song/video passes when ANY credited artist is approved; with no credits, the page's artist stands in. */
   songAllowed(song, fallbackArtistId = null) {
+    if (this.blockPodcasts && song && song.isPodcast) return false;
     const ids = (song.artists || []).map((a) => a.id).filter(Boolean);
     if (!ids.length) return this.isApprovedArtist(fallbackArtistId);
     return ids.some((id) => this.isApprovedArtist(id));
