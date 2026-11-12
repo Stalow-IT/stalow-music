@@ -33,16 +33,18 @@ fun ZemerStationCard(
 ) {
     GridItem(
         title = {
-            Text(
-                text = station.nowPlaying?.title ?: station.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                textAlign = TextAlign.Start,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .basicMarquee(),
-            )
+            com.jtech.zemer.ui.component.BidiMarquee(station.nowPlaying?.title ?: station.title) {
+                Text(
+                    text = station.nowPlaying?.title ?: station.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .basicMarquee(),
+                )
+            }
         },
         subtitle = {
             station.nowPlaying?.artist?.takeIf { it.isNotBlank() }?.let { artist ->

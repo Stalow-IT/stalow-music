@@ -449,15 +449,17 @@ private fun NewMiniPlayer(
                             transitionSpec = { fadeIn() togetherWith fadeOut() },
                             label = "",
                         ) { title ->
-                            Text(
-                                text = title,
-                                color = cardTitle,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.gentleMarquee(),
-                            )
+                            com.jtech.zemer.ui.component.BidiMarquee(title) {
+                                Text(
+                                    text = title,
+                                    color = cardTitle,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.gentleMarquee(),
+                                )
+                            }
                         }
 
                         if (metadata.artists.any { it.name.isNotBlank() }) {
@@ -474,14 +476,16 @@ private fun NewMiniPlayer(
                                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                                     label = "",
                                 ) { artists ->
-                                    Text(
-                                        text = artists,
-                                        color = cardSubtitle,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.gentleMarquee(),
-                                    )
+                                    com.jtech.zemer.ui.component.BidiMarquee(artists) {
+                                        Text(
+                                            text = artists,
+                                            color = cardSubtitle,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.gentleMarquee(),
+                                        )
+                                    }
                                 }
                             }
                         }
