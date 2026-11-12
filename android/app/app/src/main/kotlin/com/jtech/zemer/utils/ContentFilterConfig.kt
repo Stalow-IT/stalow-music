@@ -1,0 +1,75 @@
+package com.jtech.zemer.utils
+
+/**
+ * In-memory representation of content filter settings pulled from DataStore.
+ * Includes fields for sync functionality and device-specific preferences.
+ */
+data class ContentFilterConfig(
+    val filtersEnabled: Boolean = true,
+    val allowFemaleSingers: Boolean = false,
+    val blockVideos: Boolean = false,
+    val blockPodcasts: Boolean = false,
+    val lastSyncTime: Long = -1L,
+    val isSynced: Boolean = false
+)
+
+/**
+ * Whether female singers are currently allowed: either filtering is off entirely, or the female toggle
+ * is on. The single source for the podcast female gate — used by [ContentFilterState]-driven podcast
+ * surfaces (library sources, the whitelisted-podcasts browse VM) so they can't drift apart.
+ */
+fun ContentFilterConfig.allowsFemale(): Boolean = !filtersEnabled || allowFemaleSingers
+
+object ContentFilterState {
+    private val _state = kotlinx.coroutines.flow.MutableStateFlow(ContentFilterConfig())
+    val state: kotlinx.coroutines.flow.StateFlow<ContentFilterConfig> = _state
+
+    var current: ContentFilterConfig
+        get() = _state.value
+        internal set(value) {
+            _state.value = value
+        }
+
+    fun updateConfig(
+        filtersEnabled: Boolean? = null,
+        allowFemaleSingers: Boolean? = null,
+        blockVideos: Boolean? = null,
+        blockPodcasts: Boolean? = null,
+        lastSyncTime: Long? = null,
+        isSynced: Boolean? = null
+    ) {
+        val currentConfig = current
+        current = currentConfig.copy(
+            filtersEnabled = filtersEnabled ?: currentConfig.filtersEnabled,
+            allowFemaleSingers = allowFemaleSingers ?: currentConfig.allowFemaleSingers,
+            blockVideos = blockVideos ?: currentConfig.blockVideos,
+            blockPodcasts = blockPodcasts ?: currentConfig.blockPodcasts,
+            lastSyncTime = lastSyncTime ?: currentConfig.lastSyncTime,
+            isSynced = isSynced ?: currentConfig.isSynced
+        )
+    }
+
+    /**
+     * Update only content filter settings (preserving sync metadata)
+     */
+    fun updateContentFilters(
+        filtersEnabled: Boolean? = null,
+        allowFemaleSingers: Boolean? = null,
+        blockVideos: Boolean? = null,
+        blockPodcasts: Boolean? = null,
+    ) {
+        updateConfig(
+            filtersEnabled = filtersEnabled,
+            allowFemaleSingers = allowFemaleSingers,
+            blockVideos = blockVideos,
+            blockPodcasts = blockPodcasts,
+        )
+    }
+
+    val hasActiveFilters: Boolean
+        get() = current.filtersEnabled && (
+            current.allowFemaleSingers.not() ||
+            current.blockVideos ||
+            current.blockPodcasts
+        )
+}

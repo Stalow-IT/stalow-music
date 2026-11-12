@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget colors -->
+    <color name="widget_text_primary">#FFFFFF</color>
+    <color name="widget_text_secondary">#AAAAAA</color>
+    <color name="widget_background">#0F1117</color>
+    <color name="widget_album_bg">#1E2029</color>
+    <color name="widget_accent">#3EF2E4</color>
+</resources>

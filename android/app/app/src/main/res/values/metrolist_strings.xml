@@ -1,0 +1,704 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pause">Pause</string>
+    <string name="replay">Replay</string>
+    <string name="resume_playback">Resume playback</string>
+    <string name="nothing_to_resume">Nothing to resume</string>
+    <string name="crop_album_art">Crop album art</string>
+    <string name="crop_album_art_desc">Fill the player with the cover art instead of fitting it (edges may be cropped)</string>
+    <string name="not_applicable">N/A</string>
+
+    <!-- Home rows -->
+    <string name="featured_playlists">Community playlists</string>
+    <string name="home_see_all_empty">Nothing here yet</string>
+    <string name="artist_not_available">This artist isn\'t available yet</string>
+    <string name="album_not_available">This album isn\'t available</string>
+    <string name="song_not_available">This song isn\'t available</string>
+    <string name="featured_video_songs">Featured Video Songs</string>
+    <string name="video_downloads_in_music">Show in downloaded music</string>
+    <string name="video_downloads_in_music_description">Downloaded videos also appear as songs in your downloaded music</string>
+    <string name="podcast_not_available">This podcast isn\'t available</string>
+
+    <string name="local_history">Local</string>
+    <string name="remote_history">Remote</string>
+
+    <string name="unknown_artist">Unknown artist</string>
+    <string name="latest_releases">Latest Releases</string>
+    <string name="zemer_playlists">Stalow Music Playlists</string>
+    <plurals name="n_hour">
+        <item quantity="one">1 hour</item>
+        <item quantity="other">%d hours</item>
+    </plurals>
+    <string name="featured_artists">Featured Artists</string>
+    <string name="featured_albums">Featured Albums</string>
+
+    <string name="liked">Liked</string>
+    <string name="offline">Downloaded</string>
+    <string name="my_top">My top</string>
+    <string name="cached_playlist">Cached</string>
+    <string name="uploaded_playlist">Uploaded</string>
+    <string name="sync_playlist">Sync playlist</string>
+    <string name="sync_disabled">Sync disabled</string>
+    <string name="elements_selected">%1$d elements selected</string>
+    <string name="allows_for_sync_witch_youtube">Note: This allows for syncing with YouTube Music. This is NOT changeable later.</string>
+    <string name="generating_image">Generating image</string>
+    <string name="please_wait">Please wait</string>
+    <string name="share_lyrics">Share lyrics</string>
+    <string name="share_as_text">Share as text</string>
+    <string name="share_as_image">Share as image</string>
+    <string name="max_selection_limit">Max selection limit</string>
+    <string name="share_selected">Share selected</string>
+    <string name="customize_colors">Customize colors</string>
+    <string name="more_options">More options</string>
+    <string name="text_color">Text color</string>
+    <string name="secondary_text_color">Secondary text color</string>
+    <string name="background_color">Background color</string>
+
+    <string name="remove_from_cache">Remove from cache</string>
+    <string name="copy_link">Copy link</string>
+    <string name="select">Select all</string>
+    <string name="like_all">Like all</string>
+    <string name="dislike_all">Dislike all</string>
+    <string name="sort_by_last_updated">Date updated</string>
+    <string name="link_copied">Link copied to clipboard</string>
+    <string name="starting_radio">Starting radio</string>
+    <string name="radio_start_failed">Couldn\'t start radio</string>
+    <string name="now_playing">Now Playing</string>
+
+    <string name="lyrics">Lyrics</string>
+    <string name="close">Close</string>
+    <string name="hide_player_thumbnail">Hide Player Thumbnail</string>
+    <string name="hide_player_thumbnail_desc">Replace album artwork with app logo in player</string>
+
+    <string name="already_in_playlist">Already in playlist:</string>
+
+    <plurals name="n_element">
+        <item quantity="one">%d element</item>
+        <item quantity="other">%d elements</item>
+    </plurals>
+    <plurals name="n_time">
+        <item quantity="one">%d time</item>
+        <item quantity="other">%d times</item>
+    </plurals>
+
+    <string name="seek_forward_dynamic">+%1$d seconds forwards</string>
+    <string name="seek_backward_dynamic">-%1$d seconds backwards</string>
+    <string name="seek_seconds_addup">Progressive seek</string>
+    <string name="seek_seconds_addup_description">If enabled,  Adds up 5 extra seconds incrementally on each seek skip</string>
+
+
+    <string name="player_background_style">Player background style</string>
+    <string name="follow_theme">Follow theme</string>
+    <string name="gradient">Gradient</string>
+    <string name="floating_mini_player">Floating mini player</string>
+    <string name="floating_mini_player_desc">Show the mini player overlay above screens</string>
+    <string name="featured_videos">Featured videos</string>
+    <string name="videos">Videos</string>
+    <string name="video">Video</string>
+    <string name="song">Song</string>
+    <string name="enter_fullscreen">Enter fullscreen</string>
+    <string name="exit_fullscreen">Exit fullscreen</string>
+    <string name="video_quality">Video quality</string>
+    <string name="video_quality_auto">Auto</string>
+    <string name="video_quality_auto_description">Adjusts to your connection</string>
+    <string name="video_quality_resolution">%1$d x %2$d</string>
+    <string name="video_quality_p">%1$dp</string>
+    <string name="video_songs">Video Songs</string>
+    <string name="filter_video_songs">Video songs</string>
+    <string name="music">Music</string>
+    <string name="downloaded_videos">Downloaded videos</string>
+    <string name="no_downloaded_videos">No downloaded videos</string>
+    <plurals name="n_video">
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
+    </plurals>
+    <string name="player_background_blur">Blur</string>
+    <string name="player_buttons_style">Player button colors</string>
+    <string name="default_style">Default</string>
+    <string name="secondary_color_style">Secondary</string>
+    <string name="enable_swipe_thumbnail">Enable swipe to change song</string>
+    <string name="swipe_song_to_add">Swipe song to the left to add it to the queue or to the right to play it next</string>
+    <string name="swipe_song_to_remove">Swipe song to remove it from the playlist</string>
+    <string name="lyrics_click_change">Change lyrics on click</string>
+    <string name="lyrics_auto_scroll">Auto scroll lyrics</string>
+    <string name="slim">Slim</string>
+    <string name="bottom_nav_bar">Bottom navigation bar</string>
+    <string name="customize_bottom_navigation">Customize Bottom Navigation</string>
+    <string name="auto_playlists">Auto playlists</string>
+    <string name="show_liked_playlist">Show \"Liked\" playlist</string>
+    <string name="show_downloaded_playlist">Show \"Downloaded\" playlist</string>
+    <string name="show_top_playlist">Show \"Top\" playlist</string>
+    <string name="show_cached_playlist">Show \"Cached\" playlist</string>
+
+    <string name="token_adv_login_description">This is an ADVANCED login method. As an alternative to the web portal, you may directly enter or update your login token here. For example, this can speed up logging in on multiple devices. Please note that any invalid token formats the app fails to parse will not be accepted</string>
+    <string name="yt_sync">Auto sync with account</string>
+    <string name="more_content">More content</string>
+    
+    <!-- Playlist cover edit -->
+    <string name="edit_playlist_cover">Edit playlist cover</string>
+    <string name="edit_playlist_cover_note">Note: Your account must be linked to a phone number and verified on YouTube Music to change playlist cover.</string>
+    <string name="edit_playlist_cover_note_wait">After selecting an image, please wait a moment for the new cover to appear in your playlist.</string>
+    <string name="choose_from_library">Choose from library</string>
+    <string name="remove_custom_image">Remove custom image</string>
+
+    <!-- General -->
+    <string name="general">General</string>
+    <string name="default_lib_chips">Change default library chip</string>
+    <string name="set_quick_picks">Set quick picks</string>
+    <string name="last_song_listened">Based on last song listened</string>
+    <string name="app_language">App language</string>
+
+
+    <string name="import_online">Import a \"m3u\" playlists</string>
+    <string name="import_csv">Import a \"csv\" playlists</string>
+    <string name="playlist_add_local_to_synced_note">Note: Adding local songs to synced/remote playlists is unsupported. Any other combination is valid</string>
+
+    <string name="auto_download_on_like">Auto download on like</string>
+    <string name="auto_download_on_like_desc">Automatically download songs when you like them</string>
+
+    <string name="swipe_sensitivity">Mini player swipe sensitivity</string>
+    <string name="sensitivity_percentage">%1$d%%</string>
+
+    <string name="clear_song_cache_dialog">  Are you sure you want to clear all cached songs?</string>
+    <string name="clear_image_cache_dialog">  Are you sure you want to clear all cached image?</string>
+    <string name="clear_downloads_dialog">  Are you sure you want to clear all downloads?</string>
+
+    <string name="disable">Disable</string>
+
+    <string name="not_logged_in_youtube">Not logged in to YouTube</string>
+    <string name="signed_in_as">Signed in as</string>
+
+
+
+    <string name="all_time">All time</string>
+    <string name="past_24_hours">Past 24 hours</string>
+    <string name="past_week">Past week</string>
+    <string name="past_month">Past month</string>
+    <string name="past_year">Past year</string>
+    <string name="top_length">My Top list length</string>
+    <string name="history_duration">History duration</string>
+    <string name="information">Information</string>
+    <string name="description">Description</string>
+    <string name="subscribers">Subscribers</string>
+    <string name="views">Views</string>
+    <string name="likes">Likes</string>
+    <string name="dislikes">Dislikes</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="subscribed">Subscribed</string>
+    <string name="playlist_not_found">Playlist not found</string>
+    <string name="playlist_not_found_desc">The requested playlist could not be loaded</string>
+    <string name="empty_playlist">Empty Playlist</string>
+    <string name="empty_playlist_desc">This playlist doesn\'t contain any songs</string>
+    <plurals name="seconds">
+        <item quantity="one">1 second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+
+    <!-- Player Settings -->
+    <string name="disable_load_more_when_repeat_all">Disable load more when repeat all</string>
+    <string name="disable_load_more_when_repeat_all_desc">Don\'t auto load more songs when repeat all mode is enabled</string>
+
+    <!-- Material 3 Settings Sections -->
+    <string name="settings_section_ui">Interface</string>
+    <string name="settings_section_privacy">Privacy &amp; Security</string>
+    <string name="settings_section_player_content">Player &amp; Content</string>
+    <string name="settings_section_storage">Storage &amp; Data</string>
+    <string name="settings_section_system">System &amp; About</string>
+    <string name="settings_section_support">Support</string>
+
+    <!-- Updater -->
+    <string name="updater">Updater</string>
+    <string name="check_for_updates">Automatically check for updates</string>
+    <string name="nightly_builds">Nightly builds</string>
+    <string name="nightly_builds_notice">Nightly builds have new features implemented. However, they may have bugs. Going back to stable release builds may require you to clear data of the app.</string>
+    <string name="enable">Enable</string>
+    <string name="nightly_update_available">Update available: %1$s</string>
+    <string name="update_action">Update</string>
+    <string name="force_download_stable">Download current stable release</string>
+    <string name="check_for_updates_now">Check for updates now</string>
+    <string name="update_available">Update available</string>
+    <string name="up_to_date">Up to date</string>
+    <string name="up_to_date_message">You are running the latest version (%1$s).</string>
+    <string name="update_channel_name">App updates</string>
+    <string name="update_channel_desc">Notifications about new versions</string>
+    <string name="download_and_install">Download &amp; Install</string>
+    <string name="downloading_update">Downloading update…</string>
+    <string name="later">Later</string>
+    <string name="whats_new">What\'s new</string>
+    <string name="error">Error</string>
+    <string name="installer_method">Installation method</string>
+    <string name="installer_native_title">Standard</string>
+    <string name="installer_root_title">Root</string>
+    <string name="installer_shizuku_title">Shizuku</string>
+    <string name="installer_root_unavailable">Root access not available</string>
+    <string name="installer_shizuku_not_installed">Shizuku is not installed on this device</string>
+    <string name="shizuku_not_running">Shizuku is not running</string>
+    <string name="shizuku_permission_required">Shizuku permission required</string>
+    <string name="shizuku_not_supported_version">Shizuku installer is not supported on this Android version</string>
+    <string name="installer_launch_failed">Failed to launch installer</string>
+    <string name="installer_unavailable">This phone can\'t open the app installer. Download the update from stalow.netlify.app/downloads/stalow-music.apk and install it with a file manager or installer app that can install apps, or turn on the system installer and try again.</string>
+    <string name="installer_session_id_failed">Failed to create install session</string>
+    <string name="install_success">Update installed successfully</string>
+    <string name="install_failed">Installation failed: %1$s</string>
+    <string name="install_failed_generic">Installation failed</string>
+    <string name="install">Install</string>
+    <string name="installing">Installing…</string>
+    <string name="installing_note_restart">The app will restart automatically once the update is installed.</string>
+    <string name="installing_note_reopen">The app will close to finish installing. Reopen it to use the new version.</string>
+
+    <!-- Offload -->
+    <string name="audio_offload">Enable offload</string>
+    <string name="audio_offload_description">Use the offload audio path for audio playback. Disabling this may increase power usage but can be useful if you experience issues with audio playback or post processing</string>
+
+
+    <!-- Stream sources -->
+    <string name="stream_sources">Stream sources</string>
+    <string name="stream_sources_description">Enable/Disable streaming clients</string>
+    <!-- Relay playback mode (for kosher-filtered devices) -->
+    <string name="stream_relay_group">Filtered devices</string>
+    <string name="stream_relay_title">Stream through Stalow Music</string>
+    <string name="stream_relay_desc">For devices whose content filter blocks YouTube.</string>
+    <string name="login_filter_blocks_playback">I have a filter</string>
+    <string name="relay_error_unavailable">This track is not available.</string>
+    <string name="relay_error_retry">Trouble finding a stream, try again.</string>
+    <string name="stream_source_order">Current order</string>
+    <string name="stream_source_web_clients">Web clients</string>
+    <string name="stream_source_native_clients">Native clients</string>
+    <string name="stream_source_creator_clients">Creator clients</string>
+    <string name="stream_source_web_remix">WEB_REMIX</string>
+    <string name="stream_source_web_remix_desc">YouTube Music web client: the primary client</string>
+    <string name="stream_source_tvhtml5">TVHTML5</string>
+    <string name="stream_source_tvhtml5_desc">YouTube TV client: anonymous fallback, no sign-in needed</string>
+    <string name="stream_source_visionos">visionOS</string>
+    <string name="stream_source_visionos_desc">Apple direct-URL client: most reliable fallback, no cipher or sign-in</string>
+    <string name="stream_source_web_creator">WEB_CREATOR</string>
+    <string name="stream_source_web_creator_desc">YouTube Studio web client: requires sign-in</string>
+    <string name="stream_source_experimental">Experimental</string>
+    <string name="stream_source_sabr">SABR streaming</string>
+    <string name="stream_source_sabr_desc">Stream via the SABR protocol instead of a direct URL. Off by default; takes effect on the next track.</string>
+    <string name="stream_source_sabr_clients">SABR clients</string>
+    <string name="stream_source_sabr_web_remix_desc">Main web client. Streams whole songs over SABR; tried first.</string>
+    <string name="stream_source_sabr_visionos_desc">Apple direct client: no sign-in, no cipher. Reliable SABR fallback.</string>
+    <string name="stream_source_sabr_tvhtml5_desc">TV client: no sign-in. Reliable SABR fallback.</string>
+
+    <!-- Mixes / suggested playlists -->
+    <string name="mixes">Mixes</string>
+
+    <!-- Android Auto settings -->
+    <string name="android_auto">Android Auto</string>
+    <string name="android_auto_visible_sections">Visible sections</string>
+    <string name="android_auto_reorder_hint">Tap a section to enable or disable it.\nLong-press the drag handle to reorder. The first section will be shown by default</string>
+    <string name="android_auto_target_playlist">Quick-add destination</string>
+    <string name="android_auto_target_playlist_auto">Not set</string>
+    <string name="android_auto_target_playlist_not_set">No playlist selected. Choose one in Android Auto settings</string>
+
+
+    <!-- Logout confirmation -->
+    <string name="logout_keep_library_title">Keep library data?</string>
+    <string name="logout_keep_library_message">Do you want to keep your downloaded songs, playlists, and library data?</string>
+    <string name="logout_keep_library">Keep</string>
+    <string name="logout_clear_library">Clear</string>
+
+    <!-- Anonymous sync-account sign-in -->
+    <string name="sync_account_create_title">Create Sync Account</string>
+    <string name="sync_account_important_title">⚠️ Important - Read Carefully</string>
+    <string name="sync_account_creating">Creating account and locking your preferences…</string>
+    <string name="sync_account_warning_intro">Create an anonymous account to sync and backup your content filter settings.</string>
+    <string name="sync_account_warning_lock">This will permanently lock your preferences to prevent accidental changes.</string>
+    <string name="sync_account_warning_permanent">THIS CANNOT BE CHANGED ONCE SET, IT WILL PERSIST CLEARING DATA OR UNINSTALLATION OF THE APP!</string>
+    <plurals name="sync_account_wait_countdown">
+        <item quantity="one">Please wait %d second before continuing…</item>
+        <item quantity="other">Please wait %d seconds before continuing…</item>
+    </plurals>
+    <string name="sync_account_create_and_lock">Create Account &amp; Lock</string>
+    <string name="sync_account_create">Create Account</string>
+    <string name="sync_account_please_wait">Please wait…</string>
+
+    <!-- Lyrics image sharing -->
+    <string name="lyrics_image_failed">Failed to create image: %s</string>
+
+    <!-- Display density -->
+    <string name="display_density">Display Density</string>
+    <string name="display_density_custom">Custom Display Density</string>
+    <string name="density_custom_hint" formatted="false">Enter a value between 50% and 120%.\n\nExamples: 85 or 0.85 for 85%</string>
+    <string name="density_label_native" formatted="false">Native (100%)</string>
+    <string name="density_label_compact" formatted="false">Compact (75%)</string>
+    <string name="density_label_very_compact" formatted="false">Very Compact (65%)</string>
+    <string name="density_label_ultra_compact" formatted="false">Ultra Compact (55%)</string>
+    <string name="density_label_custom">Custom</string>
+    <string name="density_label_custom_value">Custom (%d%%)</string>
+    <!-- Onboarding -->
+    <string name="onboarding_all_set">All set!</string>
+    <string name="restart_required_message">The display density change will take effect after restarting the app. Do you want to restart now?</string>
+
+    <!-- Network state -->
+    <string name="network_checking">Checking…</string>
+    <string name="network_checking_internet">Checking internet connection…</string>
+    <string name="network_internet_required">Internet Required</string>
+    <string name="network_required_to_continue">An internet connection is required to continue.</string>
+    <string name="network_required_setup">An internet connection is required to continue with setup and save your preferences.</string>
+
+    <!-- Sync account (auth dialogs and status) -->
+    <string name="sync_account_create_desc">Create an account to sync your content filter preferences and restore them after app reinstallation.</string>
+    <string name="sync_account_created">Sync Account Created</string>
+    <string name="sync_account_optional_create">Optional: Create Sync Account</string>
+    <string name="sync_account_locked_backed_up">Settings will be locked and backed up</string>
+    <string name="sync_account_connect_to_lock">Connect to lock settings</string>
+    <string name="sync_account_active">Active</string>
+    <string name="sync_account_optional">Optional</string>
+    <string name="content_filter_sync">Content Filter Sync</string>
+    <string name="content_filters_restored">Content filter preferences have been automatically restored from your account.</string>
+    <string name="restored_from">Restored from: %s</string>
+    <string name="lock_settings">Lock Settings</string>
+    <string name="create_account_to_lock">Create Account to Lock</string>
+    <string name="user_id_format">ID: %s</string>
+    <string name="signed_in">Signed in</string>
+    <string name="not_signed_in">Not signed in</string>
+    <string name="sign_in_to_continue">Sign in to continue</string>
+    <string name="sign_in_not_finished">Almost there! Your sign-in didn\'t finish — please try signing in again.</string>
+    <string name="blocked">Blocked</string>
+    <string name="allowed">Allowed</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_restoring_filters">Restoring Content Filter Settings</string>
+    <string name="onboarding_checking_saved">Checking for saved preferences…</string>
+    <string name="onboarding_restore_check_failed">Can\'t check your saved settings</string>
+    <string name="onboarding_whitelist_load_failed">Can\'t load the artist list</string>
+    <string name="onboarding_whitelist_load_failed_detail">Stalow Music needs the list of approved artists before you can start. Check your internet connection. Retrying automatically.</string>
+    <string name="onboarding_restore_check_failed_detail">Stalow Music needs to check whether this device has saved content filters before you continue. Check your internet connection. Retrying automatically.</string>
+    <string name="onboarding_found_saved">Found your saved preferences</string>
+    <string name="onboarding_restored_settings">Restored Settings:</string>
+    <string name="onboarding_restored_filters_enabled">• Content Filters: Enabled</string>
+    <string name="onboarding_restored_female">• Female Content: %s</string>
+    <string name="onboarding_restored_videos">• Videos: %s</string>
+    <string name="onboarding_restored_podcasts">• Podcasts: %s</string>
+    <string name="onboarding_continuing_auto">Continuing automatically…</string>
+    <string name="onboarding_filters_subtitle">Set up your content preferences (optional)</string>
+    <string name="onboarding_allow_female_title">Allow Female Content</string>
+    <string name="onboarding_allow_female_desc">Include music and podcasts by female artists</string>
+    <string name="onboarding_block_videos_title">Block Videos</string>
+    <string name="onboarding_block_videos_desc">Hide video content</string>
+    <string name="onboarding_block_podcasts_title">Block Podcasts</string>
+    <string name="onboarding_block_podcasts_desc">Hide podcast content</string>
+    <string name="block_podcasts">Block podcasts</string>
+    <string name="onboarding_nav_setup">Navigation Setup</string>
+    <string name="onboarding_nav_question">Would you like to enable the bottom navigation bar for quick access to your favorite screens?</string>
+    <string name="onboarding_nav_enable">Enable Bottom Navigation</string>
+    <string name="onboarding_nav_enable_desc">Show bottom navigation bar for quick access</string>
+    <string name="onboarding_nav_no_thanks">No thanks</string>
+    <string name="onboarding_nav_later">I can enable it later in appearance settings</string>
+    <string name="onboarding_nav_customize_later">You can customize which menu items appear later in appearance settings</string>
+
+    <!-- Settings hub descriptions -->
+    <string name="settings_desc_appearance">Theme, colors, density</string>
+    <string name="settings_desc_player">Audio quality, playback</string>
+    <string name="settings_desc_content">Language, content settings</string>
+    <string name="settings_desc_dpad">D-pad configuration</string>
+    <string name="settings_desc_links">Link handling settings</string>
+    <string name="settings_desc_privacy">History, privacy settings</string>
+    <string name="settings_desc_storage">Cache management</string>
+    <string name="settings_desc_backup">Backup your data</string>
+    <string name="settings_desc_updater">Check for app updates</string>
+    <string name="settings_desc_about">About Stalow Music</string>
+    <string name="settings_desc_android_auto">Customize browsing &amp; quick-add</string>
+
+    <!-- Bottom navigation customization -->
+    <string name="bottom_nav_items">Bottom Navigation Items</string>
+    <string name="bottom_nav_n_selected">%1$d/5 selected</string>
+
+    <!-- About screen -->
+    <string name="about_tagline">Kosher YouTube Music Client</string>
+    <string name="about_version">Version %s</string>
+    <string name="about_based_on">Based on Metrolist by MO AGAMY</string>
+    <string name="github">GitHub</string>
+
+    <!-- Developer mode (About screen easter egg) -->
+    <string name="developer_mode_enabled">Developer mode enabled</string>
+    <string name="developer_mode_disabled">Developer mode disabled</string>
+
+    <!-- Log viewer -->
+    <string name="log_viewer">Log viewer</string>
+    <string name="enable_debug_logging">Enable debug logging</string>
+    <string name="enable_debug_logging_desc">Capture detailed logs for debugging and troubleshooting</string>
+    <string name="clear_logs">Clear logs</string>
+    <string name="no_logs">No logs</string>
+    <string name="export_logs">Export logs</string>
+    <string name="log_export_subject">Stalow Music logs</string>
+    <string name="logs_exported">Logs exported to %s</string>
+    <string name="logs_export_failed">Failed to export logs</string>
+    <string name="log_export_range">Time range</string>
+    <string name="log_export_from">From</string>
+    <string name="log_export_to">To</string>
+    <string name="log_filter_hint">Filter by tag or text</string>
+
+    <!-- Player / library misc -->
+    <string name="error_playing">Error playing</string>
+    <string name="progress_percent">Progress %d%%</string>
+    <string name="syncing">Syncing…</string>
+    <string name="sync_completed">Sync completed</string>
+    <string name="sync_failed">Sync failed: %s</string>
+    <string name="queue_selection">Selection</string>
+    <string name="queue_auto_playlist">Auto Playlist</string>
+    <string name="queue_cache_songs">Cache Songs</string>
+
+    <!-- Video player -->
+    <string name="video_playback_error">Playback error</string>
+
+    <!-- Accessibility content descriptions -->
+    <string name="cd_fetch_from_ytm">Fetch from YouTube Music</string>
+    <string name="cd_suggestions_available">Suggestions available</string>
+
+    <!-- Download notifications / proxy -->
+    <string name="download_channel_name">Music Downloads</string>
+    <string name="download_channel_desc">Notifications for music download progress</string>
+    <string name="download_preparing">Preparing downloads…</string>
+    <string name="download_in_progress">Music downloads in progress</string>
+
+    <!-- Clipboard labels -->
+    <string name="clip_label_title">Title</string>
+    <string name="clip_label_artist">Artist</string>
+    <string name="clip_label_song_link">Song link</string>
+    <string name="clip_label_artist_link">Artist link</string>
+
+    <!-- Song details sheet -->
+    <string name="format_itag">Itag</string>
+    <string name="format_stream_client">Stream client</string>
+    <string name="format_player_hash">Player hash</string>
+    <string name="format_cipher_support_added">Cipher support added</string>
+
+    <!-- Recognize music (Shazam-style identification, whitelist-filtered) -->
+    <string name="recognize_music">Recognize music</string>
+    <string name="recognize_music_fab">Recognize music button</string>
+    <string name="recognize_music_fab_desc">Show a floating button on the home music tab to identify a song</string>
+    <string name="recognize_music_mic_button">Start listening</string>
+    <string name="recognition_history">Recognition history</string>
+    <string name="recognition_history_empty">No recognitions yet</string>
+    <string name="recognition_history_clear">Clear history</string>
+    <string name="recognition_history_clear_confirm">Clear all recognition history?</string>
+    <string name="recognition_history_delete">Remove</string>
+    <string name="recognize_music_tap_to_start">Tap to identify a song</string>
+    <string name="recognize_music_listening">Listening…</string>
+    <string name="recognize_music_listening_hint">Make sure the music is playing clearly</string>
+    <string name="recognize_music_identifying">Identifying…</string>
+    <string name="recognize_music_searching">Finding it on Stalow Music…</string>
+    <string name="recognize_music_no_match">No match found</string>
+    <string name="recognize_music_no_match_hint">We couldn\'t find this song from a permitted artist. Try again with clearer audio.</string>
+    <string name="recognize_music_error">Recognition failed</string>
+    <string name="recognize_music_error_hint">Something went wrong. Please try again.</string>
+    <string name="recognize_music_permission_title">Microphone needed</string>
+    <string name="recognize_music_permission_rationale">Stalow Music needs microphone access to listen and identify the song playing around you.</string>
+    <string name="recognize_music_play">Play</string>
+    <string name="recognize_music_try_again">Try again</string>
+    <string name="recognize_music_close">Close</string>
+
+    <!-- FCast -->
+    <string name="cast">Cast</string>
+    <string name="cast_button_description">Cast to device</string>
+    <string name="cast_dialog_title">Cast to</string>
+    <string name="cast_connecting">Connecting…</string>
+    <string name="cast_refresh">Refresh device list</string>
+    <string name="cast_connect_failed">Couldn\'t connect to %1$s</string>
+    <string name="cast_consent_message">Casting needs a one-time download of cast support (about 5 MB).</string>
+    <string name="cast_download">Download</string>
+    <string name="cast_download_failed">Couldn\'t download cast support</string>
+    <string name="cast_stream_failed">Couldn\'t start casting — no playable stream</string>
+    <string name="cast_unsupported_device">Casting isn\'t supported on this device</string>
+    <string name="cast_playback_failed">Cast playback keeps failing — check the receiver\'s connection</string>
+    <string name="cast_session_ended_idle">Casting stopped — the session was idle</string>
+    <string name="cast_download_title">Download cast support?</string>
+    <string name="cast_downloading_support">Downloading cast support…</string>
+    <string name="cast_downloading_support_percent">Downloading cast support… %1$d%%</string>
+    <string name="cast_download_success">Cast support downloaded</string>
+    <string name="cast_get_fcast">No Chromecast handy? Get FCast for any screen</string>
+    <string name="cast_same_wifi_hint">Make sure your device is on the same Wi-Fi network</string>
+    <string name="cast_searching">Searching for cast devices…</string>
+    <string name="casting">Casting</string>
+    <string name="connected">Connected</string>
+    <string name="enable_casting">Enable casting</string>
+    <string name="enable_casting_description">Show a cast button to play to Chromecast and FCast devices on your network.</string>
+    <string name="stop_casting">Stop casting</string>
+    <string name="offline_search">Search backup</string>
+    <string name="settings_desc_offline_search">Stalow Music server outage protection</string>
+    <string name="offline_search_enable">Enable search backup</string>
+    <string name="offline_search_enable_desc">Download the catalog so search and browse keep working during a short Stalow Music server outage. Updates automatically every day.</string>
+    <string name="offline_search_download_now">Download now</string>
+    <string name="offline_search_updating">Updating…</string>
+    <string name="offline_search_size">%1$s downloaded</string>
+    <string name="offline_search_last_updated">Updated %1$s</string>
+    <string name="offline_search_never">Never</string>
+    <string name="offline_search_last_error">Last error: %1$s</string>
+    <string name="offline_search_promo_title">Keep search working offline</string>
+    <string name="offline_search_promo_body">Download a backup of the catalog once and search keeps working even when the Stalow Music server is unreachable</string>
+    <string name="offline_search_promo_action">Set up</string>
+    <string name="offline_search_promo_dismiss">Not now</string>
+    <!-- Zemer Stations (synchronized broadcast radio) -->
+    <string name="station_live_badge">LIVE</string>
+    <string name="onboarding_backup_title">Search backup</string>
+    <string name="onboarding_backup_question">Should search keep working even when the Stalow Music server is unreachable?</string>
+    <string name="onboarding_backup_enable">Download a backup</string>
+    <string name="onboarding_backup_enable_desc">Downloads the catalog now and keeps it updated automatically every day</string>
+    <string name="onboarding_backup_skip">Not now</string>
+    <string name="onboarding_backup_skip_desc">You can enable it any time in Settings → Search backup</string>
+    <!-- Genres (song-level genre layer: catalog, detail pages, genre radio) -->
+    <string name="genres">Genres</string>
+    <string name="genre_kind_style">Styles</string>
+    <string name="genre_kind_occasion">Occasions</string>
+    <string name="show_genres_row">Show genres on home</string>
+    <string name="show_genres_row_desc">Genre shortcut rows on the Music and Podcasts tabs</string>
+    <string name="statuses">Music Status</string>
+    <string name="jump_to_date">Jump to date</string>
+    <string name="read_more">Read more</string>
+    <string name="read_less">Read less</string>
+    <string name="copy_text">Copy text</string>
+    <string name="search_status_hint">Search creators</string>
+    <plurals name="n_status_post">
+        <item quantity="one">%d post</item>
+        <item quantity="other">%d posts</item>
+    </plurals>
+    <plurals name="n_status">
+        <item quantity="one">%d status</item>
+        <item quantity="other">%d statuses</item>
+    </plurals>
+    <string name="show_statuses_row">Show status on home</string>
+    <string name="show_statuses_row_desc">A row of music creator status updates under Quick picks</string>
+    <string name="hide_text_status">Hide text-only status</string>
+    <string name="hide_text_status_desc">Skip status updates that are just text, with no photo or video</string>
+    <string name="hide_image_status">Hide image status</string>
+    <string name="hide_image_status_desc">Skip status updates that are a still image</string>
+    <!-- Music Status downloads -->
+    <string name="status">Status</string>
+    <string name="save_status">Save status</string>
+    <string name="status_saved">Saved</string>
+    <string name="status_saved_toast">Saved to your device</string>
+    <string name="status_already_saved">Already saved</string>
+    <string name="status_save_failed">Couldn\'t save this status</string>
+    <string name="status_downloads_empty">Statuses you save will appear here</string>
+    <string name="status_chip_all">All</string>
+    <string name="status_chip_video">Videos</string>
+    <string name="status_chip_image">Images</string>
+    <string name="status_chip_text">Text</string>
+    <string name="status_remove">Remove from device</string>
+    <string name="status_select">Select</string>
+    <string name="status_sort_recent_saved">Recently saved</string>
+    <string name="status_sort_recent_posted">Recently posted</string>
+    <string name="singles">Singles</string>
+    <string name="browse_artists">Browse all artists</string>
+    <!-- About / credits -->
+    <string name="about_lead_developer">Lead developer</string>
+    <string name="about_lead_developers">Original Zemer developers</string>
+    <string name="about_collaborator">Collaborator</string>
+    <string name="about_collaborators">Original Zemer collaborators</string>
+    <string name="about_jtechforums">JTechForums</string>
+    <string name="about_website">Website</string>
+    <string name="about_avatar_cd">%1$s avatar</string>
+    <string name="about_zemer_team">ZemerTeam</string>
+    <string name="about_links">Links &amp; Community</string>
+    <string name="about_releases">Releases thread</string>
+    <string name="about_discussion">Discussion &amp; feedback</string>
+    <string name="about_source_code">Based on Zemer by ZemerTeam (source code)</string>
+    <string name="donate">Donate</string>
+    <string name="settings_desc_donate">Support the Stalow Music project</string>
+    <!-- Theme & Colors screen -->
+    <string name="theme_colors">Theme &amp; Colors</string>
+    <string name="theme_desc">Customize your app theme</string>
+    <string name="refresh_rate">Refresh rate</string>
+    <string name="refresh_rate_system">System default</string>
+    <string name="refresh_rate_standard">Standard (60 Hz)</string>
+    <string name="refresh_rate_high">High</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="color_palette">Color Palette</string>
+    <string name="cd_palette_item">%1$s palette</string>
+    <string name="cd_system_mode">System mode</string>
+    <string name="cd_light_mode">Light mode</string>
+    <string name="cd_dark_mode">Dark mode</string>
+    <string name="cd_pure_black_mode">Pure black mode</string>
+    <string name="palette_dynamic">Dynamic</string>
+    <string name="palette_system">System</string>
+    <string name="palette_brand">Stalow Music</string>
+    <string name="palette_crimson">Crimson</string>
+    <string name="palette_rose">Rose</string>
+    <string name="palette_purple">Purple</string>
+    <string name="palette_deep_purple">Deep Purple</string>
+    <string name="palette_indigo">Indigo</string>
+    <string name="palette_blue">Blue</string>
+    <string name="palette_sky_blue">Sky Blue</string>
+    <string name="palette_cyan">Cyan</string>
+    <string name="palette_teal">Teal</string>
+    <string name="palette_green">Green</string>
+    <string name="palette_light_green">Light Green</string>
+    <string name="palette_lime">Lime</string>
+    <string name="palette_yellow">Yellow</string>
+    <string name="palette_amber">Amber</string>
+    <string name="palette_orange">Orange</string>
+    <string name="palette_deep_orange">Deep Orange</string>
+    <string name="palette_brown">Brown</string>
+    <string name="palette_grey">Grey</string>
+    <string name="palette_blue_grey">Blue Grey</string>
+    <string name="browse_podcasts">Browse all podcasts</string>
+
+    <!-- Podcasts -->
+        <string name="podcasts">Podcasts</string>
+        <string name="refresh_artists">Refresh artists</string>
+        <string name="refresh_podcasts">Refresh podcasts</string>
+        <string name="shiurim">Shiurim</string>
+        <string name="shiurim_empty">Shiurim channels will show up here</string>
+        <string name="search_shiurim">Search shiurim…</string>
+        <string name="video_channels_empty">Video channels will show up here</string>
+        <string name="search_video_channels">Search video channels…</string>
+        <string name="search_podcasts">Search podcasts…</string>
+        <string name="search_episodes">Search episodes…</string>
+        <string name="search_episodes_for">Search episodes for “%1$s”</string>
+        <string name="search_episodes_incomplete">Couldn\'t search the full episode history</string>
+        <string name="filter_podcasts">Podcasts</string>
+        <string name="no_episodes">No episodes available</string>
+        <string name="library_podcast_empty">Your podcasts will show up here</string>
+        <string name="subscribed_channels">Subscribed Channels</string>
+        <string name="new_episodes">New Episodes</string>
+        <string name="episodes_for_later">Episodes for Later</string>
+        <string name="error_episode_save">Failed to save episode</string>
+        <string name="error_episode_remove">Failed to remove episode</string>
+        <string name="error_podcast_subscribe">Failed to subscribe to podcast</string>
+        <string name="error_podcast_unsubscribe">Failed to unsubscribe from podcast</string>
+        <string name="view_channel">View channel</string>
+        <string name="view_podcast">View podcast</string>
+        <string name="episode_time_left">%s left</string>
+        <string name="episode_title">Episode title</string>
+        <string name="episode_host">Host</string>
+        <string name="continue_listening">Continue Listening</string>
+        <string name="featured_podcasts">Featured</string>
+        <string name="top_podcasts">Top Podcasts</string>
+        <string name="trending_episodes">Trending Episodes</string>
+        <string name="trending_videos">Trending Videos</string>
+        <string name="trending_video_songs">Trending video songs</string>
+        <string name="new_videos">New Videos</string>
+        <string name="new_video_songs">New video songs</string>
+        <string name="top_video_artists">Top Video Artists</string>
+        <string name="zemer_radio_stations">Stalow Music Radio Stations</string>
+        <string name="mark_as_played">Mark as played</string>
+        <string name="mark_as_unplayed">Mark as unplayed</string>
+        <string name="filter_episodes">Episodes</string>
+        <string name="filter_channels">Channels</string>
+        <string name="auto_playlist">Auto playlist</string>
+        <string name="downloaded_episodes">Downloaded episodes</string>
+        <string name="no_subscribed_channels">No subscribed channels</string>
+        <string name="no_downloaded_episodes">No downloaded episodes</string>
+    <string name="action_sync">Sync</string>
+    <plurals name="n_episode">
+        <item quantity="one">%d episode</item>
+        <item quantity="other">%d episodes</item>
+    </plurals>
+    <plurals name="n_channel">
+        <item quantity="one">%d channel</item>
+        <item quantity="other">%d channels</item>
+    </plurals>
+    <plurals name="n_show">
+        <item quantity="one">%d show</item>
+        <item quantity="other">%d shows</item>
+    </plurals>
+
+    <!-- Stats -->
+    <string name="stats">Stats</string>
+    <string name="listening_time">Listening time</string>
+    <string name="plays">Plays</string>
+    <string name="stats_empty">Nothing played in this period yet</string>
+</resources>
