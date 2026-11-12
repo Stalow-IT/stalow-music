@@ -116,6 +116,17 @@ constructor(
         mediaStoreDownloadManager.downloadSong(song, fromUser)
     }
 
+    /**
+     * Stalow: the video file itself - only from the small download arrow on the full-screen video screen.
+     * Every other download saves the sound ([downloadVideoToMediaStore] included). A song already saved as
+     * audio is replaced by the video (which has the sound too, and plays as audio when video is off).
+     */
+    suspend fun downloadVideoFile(song: com.jtech.zemer.db.entities.Song, requestedQuality: String?) {
+        if (song.song.isDownloaded && !song.song.isVideo) removeDownload(song.id)
+        val fresh = database.getSongByIdBlocking(song.id) ?: song
+        mediaStoreDownloadManager.downloadVideo(fresh, fromUser = true, requestedQuality = requestedQuality)
+    }
+
     fun cancelMediaStoreDownload(songId: String) {
         mediaStoreDownloadManager.cancelDownload(songId)
     }

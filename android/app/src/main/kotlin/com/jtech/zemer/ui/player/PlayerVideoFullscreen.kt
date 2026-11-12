@@ -60,6 +60,8 @@ import com.jtech.zemer.ui.menu.VideoQualityMenu
 import com.jtech.zemer.utils.makeTimeString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * The fullscreen video experience — an in-player overlay, NOT a nav route (I6: the video runs on the
@@ -225,6 +227,8 @@ fun PlayerVideoFullscreen(onExit: () -> Unit) {
                             Icon(painterResource(R.drawable.skip_next), null, tint = Color.White, modifier = Modifier.size(32.dp))
                         }
                         Spacer(Modifier.weight(1f))
+                        // The only place that saves the video file: a small arrow. Download elsewhere saves the sound.
+                        VideoDownloadArrow()
                         VideoQualitySelector(
                             qualities = videoQualities,
                             currentQuality = currentVideoQuality,
@@ -294,6 +298,51 @@ fun PlayerVideoFullscreen(onExit: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Downloads the playing video as a video file (with its sound). Shows a ring while it downloads and a tick
+ * once the video is saved. Everywhere else in the app, Download saves the sound only.
+ */
+@Composable
+private fun VideoDownloadArrow() {
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val database = com.jtech.zemer.LocalDatabase.current
+    val downloadUtil = com.jtech.zemer.LocalDownloadUtil.current
+    val metadata by playerConnection.mediaMetadata.collectAsState()
+    val id = metadata?.id ?: return
+    val song by database.song(id).collectAsState(initial = null)
+    val live by downloadUtil.getMediaStoreDownload(id).collectAsState(initial = null)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val savedVideo = song?.song?.isDownloaded == true && song?.song?.isVideo == true
+    val downloading = live?.status == com.jtech.zemer.playback.MediaStoreDownloadManager.DownloadState.Status.DOWNLOADING ||
+        live?.status == com.jtech.zemer.playback.MediaStoreDownloadManager.DownloadState.Status.QUEUED
+    IconButton(
+        enabled = !savedVideo && !downloading,
+        onClick = {
+            val meta = metadata ?: return@IconButton
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                database.transaction { insert(meta) }
+                database.song(meta.id).first()?.let { downloadUtil.downloadVideoFile(it, playerConnection.downloadVideoQuality(it.id)) }
+            }
+        },
+        modifier = Modifier.focusBorder(CircleShape),
+    ) {
+        when {
+            downloading -> androidx.compose.material3.CircularProgressIndicator(
+                progress = { live?.progress ?: 0f },
+                color = Color.White,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(20.dp),
+            )
+            else -> Icon(
+                painter = painterResource(if (savedVideo) R.drawable.check else R.drawable.download),
+                contentDescription = stringResource(if (savedVideo) R.string.stalow_video_downloaded else R.string.stalow_download_video),
+                tint = Color.White,
+                modifier = Modifier.size(22.dp),
+            )
         }
     }
 }
