@@ -434,7 +434,11 @@ async function topUpRadio(playWhenAdded = false) {
 // Videos and podcasts as video (Settings > Player & audio): they start full screen with the controls at the
 // bottom; Audio only there turns the setting off. A downloaded file plays as audio (it is saved as sound).
 let videoMode = 'off';
-const isVideoItem = (s) => !!(s && (s.isVideo || s.isPodcast));
+// Only podcasts, shiurim and the Videos channels start as video; music (also a music video) stays audio.
+let channelIds = new Set();
+stalow.channelIds().then((l) => { channelIds = new Set(l || []); }).catch(() => {});
+const isVideoItem = (s) => !!(s && (s.isPodcast || (s.artists || []).some((a) => a && channelIds.has(a.id))));
+const canWatch = (s) => !!(s && (s.isVideo || isVideoItem(s)));
 function videoModeFor(s) {
   if (!isVideoItem(s) || !S.videoFirst || S.blockVideos || downloaded.has(s.id)) return 'off';
   return videoMode === 'window' ? 'window' : 'full';
@@ -445,8 +449,8 @@ function setVideo(mode) {
   stalow.showVideo(mode, labels).catch(() => {});
   if (typeof onNowPlayingChanged === 'function' && currentView && currentView[0] === 'nowplaying') onNowPlayingChanged(); // eslint-disable-line no-undef
 }
-async function watchVideo() { // the Now playing page's "Watch video"
-  if (!S.videoFirst) await setSetting('videoFirst', true);
+async function watchVideo() { // the Now playing page's "Watch video" (also for a music video, this once)
+  if (!S.videoFirst && isVideoItem(state.queue[state.index])) await setSetting('videoFirst', true);
   setVideo('full');
 }
 

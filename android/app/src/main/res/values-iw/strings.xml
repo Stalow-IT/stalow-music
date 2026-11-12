@@ -293,6 +293,7 @@
     <string name="continue_from_device">להמשיך מ%1$s</string>
     <string name="continue_action">המשך</string>
     <string name="stalow_audio_only">שמע בלבד</string>
-    <string name="stalow_video_first">סרטונים ופודקאסטים כווידאו</string>
-    <string name="stalow_video_first_desc">מתחיל סרטונים ופרקי פודקאסט כווידאו, במסך מלא. הפעילו \"שמע בלבד\" בנגן כדי להאזין במקום זאת.</string>
+    <string name="stalow_video_first">פודקאסטים, שיעורים וסרטונים כווידאו</string>
+    <string name="stalow_video_first_desc">מתחיל פודקאסטים, שיעורים וערוצי הסרטונים כווידאו, במסך מלא. מוזיקה תמיד מתנגנת כשמע. הפעילו \"שמע בלבד\" בנגן כדי להאזין במקום זאת.</string>
+    <string name="stalow_sleep">שינה</string>
 </resources>

@@ -1,5 +1,15 @@
 package com.jtech.zemer.ui.player
 
+import androidx.compose.ui.unit.sp
+
+import androidx.compose.ui.res.painterResource
+
+import androidx.compose.foundation.layout.padding
+
+import androidx.compose.foundation.layout.size
+
+import androidx.compose.foundation.layout.height
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,27 +48,62 @@ fun StalowPlayerActionRow(
     sleepTimerContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Equal tiles, each an icon with a short label under it, so every label fits on a phone.
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth(),
     ) {
-        StalowOutlinedButton(
-            text = stringResource(R.string.stalow_up_next),
-            onClick = onUpNext,
-            modifier = Modifier.weight(1f),
-        )
+        StalowActionTile(R.drawable.queue_music, stringResource(R.string.stalow_up_next), onUpNext, Modifier.weight(1f))
         if (onLyrics != null) {
-            StalowOutlinedButton(
-                text = stringResource(R.string.stalow_lyrics),
-                onClick = onLyrics,
-                modifier = Modifier.weight(1f),
-            )
+            StalowActionTile(R.drawable.lyrics, stringResource(R.string.stalow_lyrics), onLyrics, Modifier.weight(1f))
         }
         if (mediaMetadata != null && !mediaMetadata.isEpisode) {
             StalowDownloadButton(mediaMetadata, Modifier.weight(1f))
         }
-        sleepTimerContent()
+        androidx.compose.foundation.layout.Box(Modifier.weight(1f)) { sleepTimerContent() }
+    }
+}
+
+/** One tile of the bottom row: an icon with a short label under it. */
+@Composable
+fun StalowActionTile(
+    icon: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: (@Composable () -> Unit)? = null,
+) {
+    val c = com.jtech.zemer.ui.stalow.stalowColors
+    androidx.compose.material3.Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        color = c.surface,
+        contentColor = c.text,
+        border = androidx.compose.foundation.BorderStroke(1.dp, c.border),
+        modifier = modifier.height(60.dp),
+    ) {
+        androidx.compose.foundation.layout.Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp),
+        ) {
+            if (content != null) content() else androidx.compose.material3.Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(22.dp))
+            androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
+            // The label shrinks (down to 9sp) to fit the tile on a narrow phone, so it is never cut off.
+            androidx.compose.foundation.text.BasicText(
+                text = label,
+                style = androidx.compose.ui.text.TextStyle(
+                    color = c.text,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                ),
+                maxLines = 1,
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+            )
+        }
     }
 }
 
@@ -85,20 +130,16 @@ private fun StalowDownloadButton(mediaMetadata: MediaMetadata, modifier: Modifie
         DownloadStatus.DOWNLOADING -> "${(progress * 100).roundToInt()}%"
         DownloadStatus.NOT_DOWNLOADED -> stringResource(R.string.action_download)
     }
-    StalowOutlinedButton(
-        text = label,
+    StalowActionTile(
+        icon = if (status == DownloadStatus.DOWNLOADED) R.drawable.offline else R.drawable.download,
+        label = label,
         enabled = status == DownloadStatus.NOT_DOWNLOADED,
         onClick = {
-            val songIsVideo = !blockVideos &&
-                (librarySong?.song?.isVideo == true || mediaMetadata.isVideo || currentItemIsVideo)
+            // Stalow: downloads are always the sound (videos and podcasts too).
             coroutineScope.launch(Dispatchers.IO) {
                 database.transaction { insert(mediaMetadata) }
                 database.song(mediaMetadata.id).first()?.let {
-                    if (songIsVideo) {
-                        downloadUtil.downloadVideoToMediaStore(it, requestedQuality = playerConnection.downloadVideoQuality(it.id))
-                    } else {
-                        downloadUtil.downloadToMediaStore(it)
-                    }
+                    downloadUtil.downloadToMediaStore(it)
                 }
             }
         },

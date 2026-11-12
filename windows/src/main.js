@@ -102,6 +102,8 @@ function updateThumbar(playing) {
 const handlers = {
   'catalog:search': async (q) => searchAll(api, catalog, q),
   'catalog:artists': async (text) => catalog.findArtists(text),
+  // the approved Podcasts, Shiurim and Videos channels: their uploads start as video (music stays audio)
+  'catalog:channelIds': async () => [...catalog.channels.keys()],
   'catalog:channels': async ({ category, text } = {}) => catalog.channelList(category, text),
   'catalog:home': async (recentArtistIds) => ({ artists: catalog.homeArtists(recentArtistIds, 18) }),
   // the full list behind a shelf's "See all" on an artist or channel page

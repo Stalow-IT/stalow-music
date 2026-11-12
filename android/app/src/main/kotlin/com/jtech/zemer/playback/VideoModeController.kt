@@ -211,8 +211,8 @@ class VideoModeController(
     private var autoStartedId: String? = null
 
     /**
-     * A video or podcast episode (the item IS a video: SELF or a downloaded LOCAL file - never an audio
-     * song's separate music video) starts as video when the preference is on. Availability can arrive
+     * A podcast episode or an approved Podcasts / Shiurim / Videos channel's upload (the item IS a video:
+     * SELF or a downloaded LOCAL file) starts as video when the preference is on. Music stays audio. Availability can arrive
      * after the audio starts (the type is learned from the stream), so this runs on every recompute.
      */
     private fun maybeStartAsVideo(rendition: VideoModeLogic.Rendition?) {
@@ -220,7 +220,10 @@ class VideoModeController(
         // Only once playback is starting: a queue restored paused at app start must not open full screen.
         if (!player.playWhenReady) return
         if (rendition.kind != RenditionKind.SELF && rendition.kind != RenditionKind.LOCAL) return
-        val id = service.currentMediaMetadata.value?.id ?: return
+        val meta = service.currentMediaMetadata.value ?: return
+        val id = meta.id
+        // Music (also a music video) stays audio; only podcasts, shiurim and Videos-channel uploads start as video.
+        if (!com.jtech.zemer.utils.StalowChannels.startsAsVideo(meta.isEpisode, meta.artists.map { it.id })) return
         if (autoStartedId == id) return
         autoStartedId = id
         mainHandler.post {

@@ -64,7 +64,7 @@ views.nowplaying = async () => {
       el('div', { class: 'actions np-actions' },
         el('button', { class: 'btn secondary like-big' + (isLiked(s.id) ? ' on' : ''), 'aria-pressed': String(isLiked(s.id)), onclick: () => toggleLike(s) }, icon('heart'), t(isLiked(s.id) ? 'liked' : 'like')), // eslint-disable-line no-undef
         dl,
-        isVideoItem(s) && !S.blockVideos && !downloaded.has(s.id) && videoMode === 'off' ? el('button', { class: 'btn secondary', onclick: () => watchVideo() }, icon('play'), t('watch_video')) : '', // eslint-disable-line no-undef
+        canWatch(s) && !S.blockVideos && !downloaded.has(s.id) && videoMode === 'off' ? el('button', { class: 'btn secondary', onclick: () => watchVideo() }, icon('play'), t('watch_video')) : '', // eslint-disable-line no-undef
         jobFor(s.id) ? el('span', { class: 'muted small', text: t('downloading_hint') }) : '')), // eslint-disable-line no-undef
     el('div', { class: 'np-right' },
       el('div', { class: 'chips' }, tabBtn('upnext', t('stalow_up_next')), tabBtn('lyrics', t('stalow_lyrics'))),

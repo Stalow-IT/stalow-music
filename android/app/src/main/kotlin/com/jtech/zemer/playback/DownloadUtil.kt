@@ -103,8 +103,7 @@ constructor(
     }
 
     /**
-     * Download a video to MediaStore (Movies/Zemer folder)
-     * This downloads the actual video file, not just audio.
+     * Was: download the video file. Stalow saves the sound only (see below); the parameters are kept for callers.
      */
     fun downloadVideoToMediaStore(
         song: com.jtech.zemer.db.entities.Song,
@@ -112,7 +111,9 @@ constructor(
         fromUser: Boolean = true,
         requestedQuality: String? = null,
     ) {
-        mediaStoreDownloadManager.downloadVideo(song, maxVideoBitrateKbps, fromUser, requestedQuality)
+        // Stalow: every download is the sound only, also for videos and podcasts (smaller, and it is what
+        // the app plays offline). Every "download video" path in the app lands here.
+        mediaStoreDownloadManager.downloadSong(song, fromUser)
     }
 
     fun cancelMediaStoreDownload(songId: String) {

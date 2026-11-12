@@ -122,8 +122,8 @@ android {
         minSdk = 26
         targetSdk = 36
         // Raise versionCode by 1 for every release you publish; phones only update to a higher number.
-        versionCode = 12
-        versionName = "1.11"
+        versionCode = 13
+        versionName = "1.12"
         buildConfigField("String", "ARCHITECTURE", "\"universal\"")
         // Git commit of this build — the nightly-updater's identity (every main build shares the
         // same versionName, so "is a newer nightly available" is a SHA comparison, not a version

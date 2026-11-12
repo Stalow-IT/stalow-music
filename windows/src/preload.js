@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('stalow', {
   channels: (category, text) => call('catalog:channels', { category, text }),
   home: (recentArtistIds) => call('catalog:home', recentArtistIds),
   artist: (id) => call('catalog:artist', id),
+  channelIds: () => call('catalog:channelIds'),
   shelf: (id, name, more) => call('catalog:shelf', { id, name, more }),
   album: (id) => call('catalog:album', id),
   playlist: (id) => call('catalog:playlist', id),
