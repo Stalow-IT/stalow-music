@@ -270,6 +270,27 @@ class StalowDesignScreenshotTest {
 
     @Test fun playerDark() = shoot("player-dark", dark = true) { PlayerShot() }
 
+    /** The player's bottom row at a small phone's width (320dp), in English and Hebrew. */
+    @Composable
+    private fun ActionRowShot(labels: List<String>) {
+        Column(Modifier.width(320.dp).padding(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                com.jtech.zemer.ui.player.StalowActionTile(R.drawable.queue_music, labels[0], {}, Modifier.weight(1f))
+                com.jtech.zemer.ui.player.StalowActionTile(R.drawable.lyrics, labels[1], {}, Modifier.weight(1f))
+                com.jtech.zemer.ui.player.StalowActionTile(R.drawable.download, labels[2], {}, Modifier.weight(1f))
+                com.jtech.zemer.ui.player.StalowActionTile(R.drawable.bedtime, labels[3], {}, Modifier.weight(1f))
+            }
+        }
+    }
+
+    @Test fun actionRowSmallPhone() = shoot("actions-320dp", dark = false) {
+        Column {
+            ActionRowShot(listOf("Up next", "Lyrics", "Download", "Sleep"))
+            ActionRowShot(listOf("הבא בתור", "מילים", "הורדה", "שינה"))
+            ActionRowShot(listOf("Up next", "Lyrics", "Downloaded", "12:34"))
+        }
+    }
+
     @Composable
     private fun SearchShot() {
         Column(Modifier.fillMaxSize().padding(top = 16.dp)) {

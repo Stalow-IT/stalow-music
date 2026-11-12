@@ -226,44 +226,18 @@ fun Queue(
                         // Podcast episodes have no lyrics — hide the affordance instead of opening an empty sheet.
                         onLyrics = if (mediaMetadata?.isEpisode != true) onShowLyrics else null,
                         sleepTimerContent = {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(stalow.surface)
-                                    .border(1.dp, stalow.border, RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        if (sleepTimerEnabled) {
-                                            playerConnection.service.sleepTimer.clear()
-                                        } else {
-                                            showSleepTimerDialog = true
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                AnimatedContent(
-                                    label = "sleepTimer",
-                                    targetState = sleepTimerEnabled,
-                                ) { enabled ->
-                                    if (enabled) {
-                                        Text(
-                                            text = makeTimeString(sleepTimerTimeLeft),
-                                            color = stalow.mint,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            maxLines = 1,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.basicMarquee()
-                                        )
+                            StalowActionTile(
+                                icon = R.drawable.bedtime,
+                                label = if (sleepTimerEnabled) makeTimeString(sleepTimerTimeLeft) else stringResource(R.string.stalow_sleep),
+                                onClick = {
+                                    if (sleepTimerEnabled) {
+                                        playerConnection.service.sleepTimer.clear()
                                     } else {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.bedtime),
-                                            contentDescription = stringResource(R.string.sleep_timer),
-                                            modifier = Modifier.size(22.dp),
-                                            tint = stalow.text
-                                        )
+                                        showSleepTimerDialog = true
                                     }
-                                }
-                            }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         },
                     )
                 }

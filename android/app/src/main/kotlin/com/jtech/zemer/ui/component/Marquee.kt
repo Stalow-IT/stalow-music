@@ -63,3 +63,25 @@ fun gentleMarqueeParams(focused: Boolean, everFocused: Boolean): GentleMarqueePa
     everFocused -> GentleMarqueeParams(iterations = 0, initialDelayMillis = 600)
     else -> GentleMarqueeParams(iterations = 1, initialDelayMillis = 3000)
 }
+
+/**
+ * Stalow: the direction a scrolling (marquee) text moves in. A marquee scrolls the way the layout reads, so
+ * a Hebrew title in the English app scrolled the wrong way and started from its end. Wrapping the text in
+ * this gives it the direction of its first strong letter: Hebrew starts at the right and scrolls to the left
+ * edge's opposite (right to left reading), English stays left to right - also in the Hebrew app.
+ */
+fun isRtlText(text: CharSequence): Boolean {
+    for (ch in text) {
+        when (Character.getDirectionality(ch)) {
+            Character.DIRECTIONALITY_RIGHT_TO_LEFT, Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
+            Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
+        }
+    }
+    return false
+}
+
+@Composable
+fun BidiMarquee(text: CharSequence, content: @Composable () -> Unit) {
+    val direction = if (isRtlText(text)) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides direction, content = content)
+}

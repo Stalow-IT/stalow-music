@@ -518,4 +518,10 @@
     <string name="pc_sync_bad_code">That is not a sync code (24 letters and digits)</string>
     <string name="continue_from_device">Continue from %1$s</string>
     <string name="continue_action">Continue</string>
+    <string name="stalow_audio_only">Audio only</string>
+    <string name="stalow_video_first">Podcasts, shiurim and videos as video</string>
+    <string name="stalow_video_first_desc">Start podcasts, shiurim and the Videos channels as video, full screen. Music always plays as audio. Turn on Audio only in the player to listen instead.</string>
+    <string name="stalow_sleep">Sleep</string>
+    <string name="stalow_download_video">Download video</string>
+    <string name="stalow_video_downloaded">Video downloaded</string>
 </resources>

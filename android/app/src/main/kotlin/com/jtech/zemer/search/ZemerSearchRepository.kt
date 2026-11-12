@@ -23,6 +23,7 @@ import com.metrolist.innertube.models.Artist
 import com.metrolist.innertube.models.EpisodeItem
 import com.metrolist.innertube.models.PodcastItem
 import com.metrolist.innertube.models.PlaylistItem
+import com.metrolist.innertube.models.YTItem
 import com.metrolist.innertube.models.SearchSuggestions
 import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.pages.AlbumPage
@@ -152,6 +153,10 @@ class ZemerSearchRepository @Inject constructor(
 
     @Suppress("UNUSED_PARAMETER")
     suspend fun artist(id: String, options: ZemerSearchOptions): ArtistPage? = catalog.artist(id)
+
+    /** The full list behind a shelf's arrow on an artist or channel page. */
+    suspend fun shelfAll(pageId: String, pageTitle: String, more: com.metrolist.innertube.models.BrowseEndpoint): List<YTItem> =
+        catalog.shelfAll(pageId, pageTitle, more)
 
     // --- Podcasts: the podcast catalog lived on the original server. Stalow Music's approved channels
     // (StalowChannels) open as YouTube Music channel pages; the server-only podcast features stay empty. ---

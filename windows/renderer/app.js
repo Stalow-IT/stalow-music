@@ -346,6 +346,7 @@ async function playAt(i) {
   // YouTube Music should start within ~25 s; if not, say so instead of waiting silently
   state.watchdog = setTimeout(() => playFailed(t('error_not_starting')), 25000);
   if (typeof onNowPlayingChanged === 'function') onNowPlayingChanged(); // eslint-disable-line no-undef
+  setVideo(videoModeFor(s));
   try { await P.play(s.id); } catch (e) { playFailed(e.message); }
   renderQueueIfOpen();
   topUpRadio();
@@ -430,7 +431,34 @@ async function topUpRadio(playWhenAdded = false) {
   } finally { r.busy = false; }
 }
 
+// Videos and podcasts as video (Settings > Player & audio): they start full screen with the controls at the
+// bottom; Audio only there turns the setting off. A downloaded file plays as audio (it is saved as sound).
+let videoMode = 'off';
+// Only podcasts, shiurim and the Videos channels start as video; music (also a music video) stays audio.
+let channelIds = new Set();
+stalow.channelIds().then((l) => { channelIds = new Set(l || []); }).catch(() => {});
+const isVideoItem = (s) => !!(s && (s.isPodcast || (s.artists || []).some((a) => a && channelIds.has(a.id))));
+const canWatch = (s) => !!(s && (s.isVideo || isVideoItem(s)));
+function videoModeFor(s) {
+  if (!isVideoItem(s) || !S.videoFirst || S.blockVideos || downloaded.has(s.id)) return 'off';
+  return videoMode === 'window' ? 'window' : 'full';
+}
+function setVideo(mode) {
+  videoMode = mode;
+  const labels = { audioOnly: t('audio_only'), previous: t('previous'), next: t('next'), play: t('play'), fullScreen: t('full_screen'), exitFullScreen: t('exit_full_screen'), position: t('position') };
+  stalow.showVideo(mode, labels).catch(() => {});
+  if (typeof onNowPlayingChanged === 'function' && currentView && currentView[0] === 'nowplaying') onNowPlayingChanged(); // eslint-disable-line no-undef
+}
+async function watchVideo() { // the Now playing page's "Watch video" (also for a music video, this once)
+  if (!S.videoFirst && isVideoItem(state.queue[state.index])) await setSetting('videoFirst', true);
+  setVideo('full');
+}
+
 stalow.onPlayer((ev) => {
+  if (ev.action === 'audioOnly') { setSetting('videoFirst', false); return setVideo('off'); }
+  if (ev.action === 'videoWindowed') return setVideo('window');
+  if (ev.action === 'videoFull') return setVideo('full');
+  if (ev.action === 'videoClosed') { videoMode = 'off'; return; }
   if (ev.action === 'next') return next();
   if (ev.action === 'previous') return prev();
   if (ev.action === 'play') return P.resume();
@@ -672,9 +700,25 @@ const views = {
       ...p.sections.flatMap((s) => {
         const sSongs = s.items.filter((x) => x.type === 'song');
         const others = s.items.filter((x) => x.type !== 'song');
-        return [el('h2', { text: s.title || t('more') }), sSongs.length ? songRows(sSongs) : '', others.length ? cards(others) : ''];
+        const seeAll = s.more && s.items.length >= 6 ? () => go('shelf', { id, name: p.artist.title, title: s.title, more: s.more }) : null;
+        return [sectionHead(s.title || t('more'), seeAll), sSongs.length ? songRows(sSongs) : '', others.length ? cards(others) : ''];
       }),
       p.sections.length ? '' : el('div', { class: 'status', text: t('no_songs_for_artist') }));
+  },
+  /** "See all" for one shelf of an artist or channel page: every video, episode, song, album or playlist. */
+  async shelf(arg) {
+    status(t('loading'));
+    const r = await stalow.shelf(arg.id, arg.name, arg.more);
+    if (r.notApproved) return status(t('artist_not_approved'));
+    const songs = r.items.filter((x) => x.type === 'song');
+    const others = r.items.filter((x) => x.type !== 'song');
+    view.replaceChildren(
+      el('div', { class: 'overline', text: arg.name || '' }), el('h1', { text: arg.title || t('more') }),
+      songs.length ? el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(songs, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(songs), 0) }, icon('shuffle'), t('shuffle')),
+        el('button', { class: 'btn secondary', onclick: () => downloadSongs(songs) }, icon('backup'), t('download_all'))) : '',
+      songs.length ? songRows(songs) : '', others.length ? cards(others) : '',
+      r.items.length ? '' : el('div', { class: 'status', text: t('no_songs_for_artist') }));
   },
   async album(arg) {
     const id = typeof arg === 'string' ? arg : arg.id;

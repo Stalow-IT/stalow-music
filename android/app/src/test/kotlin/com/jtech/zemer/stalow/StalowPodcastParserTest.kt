@@ -2,6 +2,7 @@ package com.jtech.zemer.stalow
 
 import com.metrolist.innertube.models.EpisodeItem
 import com.metrolist.innertube.models.PodcastItem
+import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.pages.StalowPodcastParser
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -74,5 +75,26 @@ class StalowPodcastParserTest {
         assertEquals("MPSPPLF6IVQZ92dcatTFMClxZF-FDyZvSX98G3", show.episodes[0].podcast?.id)
         assertEquals("NEXT", show.continuation)
         assertTrue(StalowPodcastParser.showPage(json("{}"), "MPSPx") == null)
+    }
+
+    @Test
+    fun `a shelf keeps its arrow link, and the see-all page has every item`() {
+        val shelfJson = json("""{"header":{"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"Videos"}]},
+            "moreContentButton":{"buttonRenderer":{"navigationEndpoint":{"browseEndpoint":{"browseId":"UC0b5Mwp","params":"EgZ2aWRlb3M"}}}}}}}""")
+        val more = StalowPodcastParser.moreOf(shelfJson)!!
+        assertEquals("UC0b5Mwp", more.browseId)
+        assertEquals("EgZ2aWRlb3M", more.params)
+        val video = """{"musicTwoRowItemRenderer":{"title":{"runs":[{"text":"A video"}]},"navigationEndpoint":{"watchEndpoint":{"videoId":"VIDEO%d"}},
+            "thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://t/%d.jpg"}]}}}}}"""
+        val grid = (1..30).joinToString(",") { video.replace("%d", it.toString()) }
+        val page = json("""{"contents":{"singleColumnBrowseResultsRenderer":{"tabs":[{"tabRenderer":{"content":{"sectionListRenderer":{"contents":[
+            {"gridRenderer":{"items":[$grid,{"musicMultiRowListItemRenderer":$episode}]}}]}}}}]}}}""")
+        val items = StalowPodcastParser.moreItems(page, "UC0b5Mwp", "Ah Blick Live")
+        assertEquals(31, items.size)
+        val v = items.first() as SongItem
+        assertEquals("VIDEO1", v.id)
+        assertTrue(v.isVideo)
+        assertEquals("UC0b5Mwp", v.artists.single().id) // by the channel
+        assertTrue(items.last() is EpisodeItem)
     }
 }

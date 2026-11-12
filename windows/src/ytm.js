@@ -138,6 +138,28 @@ function collectListItems(json, ctx) {
 
 function parseSearch(json) { return collectListItems(json); }
 
+/** A shelf's "see all" link: { browseId, params }, or null. */
+function moreOf(nav) {
+  const b = nav?.browseEndpoint;
+  return b?.browseId ? { browseId: b.browseId, ...(b.params ? { params: b.params } : {}) } : null;
+}
+
+/** Everything on a shelf's "see all" page (videos, episodes, songs, albums, playlists), in order. */
+function parseShelfAll(json, ctx = {}) {
+  const out = [];
+  const seen = new Set();
+  const add = (p) => { if (p && !seen.has(p.type + p.id)) { seen.add(p.type + p.id); out.push(p); } };
+  (function walk(x) {
+    if (Array.isArray(x)) return x.forEach(walk);
+    if (!x || typeof x !== 'object') return;
+    if (x.musicTwoRowItemRenderer) { const p = parseTwoRow(x.musicTwoRowItemRenderer); if (p && p.type === 'song' && !p.artists.length && ctx.artists) p.artists = ctx.artists; return add(p); }
+    if (x.musicMultiRowListItemRenderer) return add(parseMultiRow(x.musicMultiRowListItemRenderer, ctx));
+    if (x.musicResponsiveListItemRenderer) return add(parseListItem(x.musicResponsiveListItemRenderer, ctx));
+    for (const k in x) walk(x[k]);
+  })(json.contents);
+  return out;
+}
+
 function parseArtist(json, id) {
   const h = json.header?.musicImmersiveHeaderRenderer || json.header?.musicVisualHeaderRenderer || json.header?.musicHeaderRenderer || {};
   const artist = { type: 'artist', id, title: runsText(h.title), thumbnail: bestThumb(h.thumbnail) || bestThumb(h.foregroundThumbnail) };
@@ -146,14 +168,15 @@ function parseArtist(json, id) {
   for (const c of contents) {
     if (c.musicShelfRenderer) {
       const items = (c.musicShelfRenderer.contents || []).map((x) => x.musicResponsiveListItemRenderer && parseListItem(x.musicResponsiveListItemRenderer, { artists: [{ id, name: artist.title }] })).filter(Boolean);
-      sections.push({ title: runsText(c.musicShelfRenderer.title) || 'Songs', items });
+      sections.push({ title: runsText(c.musicShelfRenderer.title) || 'Songs', items, more: moreOf(c.musicShelfRenderer.title?.runs?.[0]?.navigationEndpoint) });
     } else if (c.musicCarouselShelfRenderer) {
       const s = c.musicCarouselShelfRenderer;
       const ctx = { artists: [{ id, name: artist.title }] };
       const items = (s.contents || []).map((x) => (x.musicTwoRowItemRenderer && parseTwoRow(x.musicTwoRowItemRenderer))
         || (x.musicResponsiveListItemRenderer && parseListItem(x.musicResponsiveListItemRenderer, ctx))
         || (x.musicMultiRowListItemRenderer && parseMultiRow(x.musicMultiRowListItemRenderer, ctx))).filter(Boolean);
-      sections.push({ title: runsText(s.header?.musicCarouselShelfBasicHeaderRenderer?.title), items });
+      const hh = s.header?.musicCarouselShelfBasicHeaderRenderer;
+      sections.push({ title: runsText(hh?.title), items, more: moreOf(hh?.moreContentButton?.buttonRenderer?.navigationEndpoint || hh?.title?.runs?.[0]?.navigationEndpoint) });
     }
   }
   return { artist, sections };
@@ -251,6 +274,12 @@ const api = {
     return type ? items.filter((x) => x.type === type || (type === 'video' && x.type === 'song')) : items;
   },
   artist: async (id) => parseArtist(await call('browse', { browseId: id }), id),
+  /** The full list behind a shelf's "see all" (the page itself only gets the first ~10). */
+  shelf: async (more, ctx) => {
+    const body = { browseId: more.browseId, ...(more.params ? { params: more.params } : {}) };
+    if (/^VL/.test(more.browseId) && !more.params) { const p = parsePlaylist(await call('browse', body), more.browseId.slice(2)); return p.songs.map((x) => (x.artists.length ? x : { ...x, artists: ctx.artists || [] })); }
+    return parseShelfAll(await call('browse', body), ctx);
+  },
   album: async (id) => parseAlbum(await call('browse', { browseId: id }), id),
   playlist: async (id) => {
     if (/^MPSP/.test(id)) { // a podcast show: its episodes, by the show's channel
@@ -268,4 +297,4 @@ const api = {
   },
 };
 
-module.exports = { api, FILTERS, lyricsBrowseId, parseLyrics, CLIENT, parseListItem, parseTwoRow, parseMultiRow, wordsToSeconds, parseSearch, parseArtist, parseAlbum, parsePlaylist, parseNext, toSeconds, _call: call };
+module.exports = { api, FILTERS, lyricsBrowseId, parseLyrics, CLIENT, parseListItem, parseTwoRow, parseMultiRow, wordsToSeconds, parseShelfAll, moreOf, parseSearch, parseArtist, parseAlbum, parsePlaylist, parseNext, toSeconds, _call: call };

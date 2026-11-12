@@ -148,6 +148,7 @@ import com.jtech.zemer.utils.VideoLinkBuilder
 import com.jtech.zemer.utils.makeTimeString
 import com.jtech.zemer.utils.rememberEnumPreference
 import com.jtech.zemer.utils.rememberPreference
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -242,6 +243,18 @@ fun BottomSheetPlayer(
     LaunchedEffect(isVideoMode, state.isExpanded) {
         if (PlayerVideoUiLogic.shouldExitFullscreen(isFullscreen, isVideoMode, state.isExpanded)) {
             isFullscreen = false
+        }
+    }
+
+    // Stalow: video opens full screen. When video mode starts (a video or podcast starting as video,
+    // or the Video toggle), the player opens and goes full screen; the close button returns to the player.
+    LaunchedEffect(isVideoMode) {
+        if (isVideoMode && !inPip) {
+            if (!state.isExpanded) {
+                state.expandSoft()
+                androidx.compose.runtime.snapshotFlow { state.isExpanded }.first { it }
+            }
+            if (playerConnection.isVideoMode.value) isFullscreen = true
         }
     }
 
@@ -528,35 +541,37 @@ fun BottomSheetPlayer(
                             transitionSpec = { fadeIn() togetherWith fadeOut() },
                             label = "",
                         ) { title ->
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp, lineHeight = 30.sp),
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = TextBackgroundColor,
-                                modifier =
-                                Modifier
-                                    .gentleMarquee()
-                                    .combinedClickable(
-                                        enabled = true,
-                                        indication = null,
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        onClick = {
-                                            // An episode's `album` is its owning podcast SHOW (an MPSP id),
-                                            // which the music album route can't open — route through the
-                                            // shared episode-aware decision (same as the menus' view row).
-                                            viewCollectionRoute(mediaMetadata.isEpisode, mediaMetadata.album?.id)?.let {
-                                                navController.navigate(it)
-                                                state.collapseSoft()
+                            com.jtech.zemer.ui.component.BidiMarquee(title) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 26.sp, lineHeight = 30.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = TextBackgroundColor,
+                                    modifier =
+                                    Modifier
+                                        .gentleMarquee()
+                                        .combinedClickable(
+                                            enabled = true,
+                                            indication = null,
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            onClick = {
+                                                // An episode's `album` is its owning podcast SHOW (an MPSP id),
+                                                // which the music album route can't open — route through the
+                                                // shared episode-aware decision (same as the menus' view row).
+                                                viewCollectionRoute(mediaMetadata.isEpisode, mediaMetadata.album?.id)?.let {
+                                                    navController.navigate(it)
+                                                    state.collapseSoft()
+                                                }
+                                            },
+                                            onLongClick = {
+                                                context.copyToClipboard(context.getString(R.string.clip_label_title), title)
                                             }
-                                        },
-                                        onLongClick = {
-                                            context.copyToClipboard(context.getString(R.string.clip_label_title), title)
-                                        }
-                                    )
-                                ,
-                            )
+                                        )
+                                    ,
+                                )
+                            }
                         }
                     }
 
@@ -581,64 +596,66 @@ fun BottomSheetPlayer(
                             label = "artist_focus"
                         )
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(2.dp, artistBorderColor.value, RoundedCornerShape(4.dp))
-                                .padding(4.dp)
-                                .gentleMarquee()
-                                .focusable()
-                                .onFocusChanged { artistFocused.value = it.isFocused }
-                        ) {
-                            var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-                            var clickOffset by remember { mutableStateOf<Offset?>(null) }
-                            Text(
-                                text = annotatedString,
-                                style = MaterialTheme.typography.titleMedium.copy(color = TextBackgroundColor.copy(alpha = 0.7f), fontSize = 16.sp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                onTextLayout = { layoutResult = it },
+                        com.jtech.zemer.ui.component.BidiMarquee(annotatedString) {
+                            Box(
                                 modifier = Modifier
-                                    .pointerInput(Unit) {
-                                        awaitPointerEventScope {
-                                            while (true) {
-                                                val event = awaitPointerEvent()
-                                                val tapPosition = event.changes.firstOrNull()?.position
-                                                if (tapPosition != null) {
-                                                    clickOffset = tapPosition
+                                    .fillMaxWidth()
+                                    .border(2.dp, artistBorderColor.value, RoundedCornerShape(4.dp))
+                                    .padding(4.dp)
+                                    .gentleMarquee()
+                                    .focusable()
+                                    .onFocusChanged { artistFocused.value = it.isFocused }
+                            ) {
+                                var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                                var clickOffset by remember { mutableStateOf<Offset?>(null) }
+                                Text(
+                                    text = annotatedString,
+                                    style = MaterialTheme.typography.titleMedium.copy(color = TextBackgroundColor.copy(alpha = 0.7f), fontSize = 16.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    onTextLayout = { layoutResult = it },
+                                    modifier = Modifier
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    val tapPosition = event.changes.firstOrNull()?.position
+                                                    if (tapPosition != null) {
+                                                        clickOffset = tapPosition
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                    .combinedClickable(
-                                        enabled = true,
-                                        indication = null,
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        onClick = {
-                                            val tapPosition = clickOffset
-                                            val layout = layoutResult
-                                            if (tapPosition != null && layout != null) {
-                                                val offset = layout.getOffsetForPosition(tapPosition)
-                                                annotatedString
-                                                    .getStringAnnotations(offset, offset)
-                                                    .firstOrNull()
-                                                    ?.let { ann ->
-                                                        val artistId = ann.item
-                                                        if (artistId.isNotBlank()) {
-                                                            // An episode's author is a podcast HOST channel:
-                                                            // the flag routes it to the podcast channel page
-                                                            // (/podcast-channel), not the music artist page.
-                                                            navController.navigateToArtist(artistId, isPodcastChannel = mediaMetadata.isEpisode)
-                                                            state.collapseSoft()
+                                        .combinedClickable(
+                                            enabled = true,
+                                            indication = null,
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            onClick = {
+                                                val tapPosition = clickOffset
+                                                val layout = layoutResult
+                                                if (tapPosition != null && layout != null) {
+                                                    val offset = layout.getOffsetForPosition(tapPosition)
+                                                    annotatedString
+                                                        .getStringAnnotations(offset, offset)
+                                                        .firstOrNull()
+                                                        ?.let { ann ->
+                                                            val artistId = ann.item
+                                                            if (artistId.isNotBlank()) {
+                                                                // An episode's author is a podcast HOST channel:
+                                                                // the flag routes it to the podcast channel page
+                                                                // (/podcast-channel), not the music artist page.
+                                                                navController.navigateToArtist(artistId, isPodcastChannel = mediaMetadata.isEpisode)
+                                                                state.collapseSoft()
+                                                            }
                                                         }
-                                                    }
+                                                }
+                                            },
+                                            onLongClick = {
+                                                context.copyToClipboard(context.getString(R.string.clip_label_artist), annotatedString)
                                             }
-                                        },
-                                        onLongClick = {
-                                            context.copyToClipboard(context.getString(R.string.clip_label_artist), annotatedString)
-                                        }
-                                    )
-                            )
+                                        )
+                                )
+                            }
                         }
                     }
                 }
@@ -832,7 +849,7 @@ fun BottomSheetPlayer(
                                 onEnterFullscreen = { isFullscreen = true },
                                 showVideoToggle = videoModeAvailable,
                                 isVideoMode = isVideoMode,
-                                onToggleVideoMode = { playerConnection.setVideoMode(it) },
+                                onToggleVideoMode = { playerConnection.chooseVideo(it) },
                             )
                     }
                     Column(
@@ -872,7 +889,7 @@ fun BottomSheetPlayer(
                                 onEnterFullscreen = { isFullscreen = true },
                                 showVideoToggle = videoModeAvailable,
                                 isVideoMode = isVideoMode,
-                                onToggleVideoMode = { playerConnection.setVideoMode(it) },
+                                onToggleVideoMode = { playerConnection.chooseVideo(it) },
                             )
                     }
 

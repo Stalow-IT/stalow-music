@@ -24,6 +24,7 @@ const SCHEMA = {
   audioNormalization: [true, bool],
   skipSilence: [false, bool], // Android: on. Off here because Windows trims silence by speeding it up (new behaviour).
   persistentQueue: [true, bool],
+  videoFirst: [true, bool], // videos and podcast episodes start as video, full screen
   autoLoadMore: [true, bool],
   disableLoadMoreWhenRepeatAll: [false, bool],
   autoSkipNextOnError: [true, bool], // Android: off. On here: the Windows app has always moved on after a failed song.

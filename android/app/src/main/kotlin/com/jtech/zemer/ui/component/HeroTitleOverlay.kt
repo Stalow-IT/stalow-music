@@ -44,21 +44,25 @@ fun BoxScope.HeroTitleOverlay(
             )
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Text(
-            text = title,
-            color = Color.White,
-            style = titleStyle,
-            maxLines = 1,
-            modifier = Modifier.basicMarquee(),
-        )
-        if (!subtitle.isNullOrEmpty()) {
+        com.jtech.zemer.ui.component.BidiMarquee(title) {
             Text(
-                text = subtitle,
-                color = Color.White.copy(alpha = 0.75f),
-                style = subtitleStyle,
+                text = title,
+                color = Color.White,
+                style = titleStyle,
                 maxLines = 1,
                 modifier = Modifier.basicMarquee(),
             )
+        }
+        if (!subtitle.isNullOrEmpty()) {
+            com.jtech.zemer.ui.component.BidiMarquee(subtitle) {
+                Text(
+                    text = subtitle,
+                    color = Color.White.copy(alpha = 0.75f),
+                    style = subtitleStyle,
+                    maxLines = 1,
+                    modifier = Modifier.basicMarquee(),
+                )
+            }
         }
         extraContent()
     }
