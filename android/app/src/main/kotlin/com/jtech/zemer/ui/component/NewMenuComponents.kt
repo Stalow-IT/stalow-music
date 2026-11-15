@@ -91,15 +91,17 @@ fun NewActionButton(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = animatedContent,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.basicMarquee()
-            )
+            com.jtech.zemer.ui.component.BidiMarquee(text) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = animatedContent,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.basicMarquee()
+                )
+            }
         }
     }
 }

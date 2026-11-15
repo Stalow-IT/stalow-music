@@ -516,7 +516,7 @@ private fun AutoPlaylistCard(
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.gentleMarquee(focused = focused))
+            com.jtech.zemer.ui.component.BidiMarquee(title) { Text(text = title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.gentleMarquee(focused = focused)) }
             Text(
                 text = buildString {
                     append(stringResource(R.string.auto_playlist))
@@ -551,7 +551,7 @@ private fun PodcastEpisodePlaylistItem(
         PodcastRowThumbnail(podcast.thumbnailUrl)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = podcast.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.gentleMarquee(focused = focused))
+            com.jtech.zemer.ui.component.BidiMarquee(podcast.title) { Text(text = podcast.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.gentleMarquee(focused = focused)) }
             if (!podcast.author.isNullOrBlank()) {
                 Text(
                     text = podcast.author,
@@ -626,13 +626,15 @@ private fun PodcastArtistChannelItem(
             modifier = Modifier.size(56.dp).clip(CircleShape),
         )
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = channelName,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).gentleMarquee(focused = focused),
-        )
+        com.jtech.zemer.ui.component.BidiMarquee(channelName) {
+            Text(
+                text = channelName,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).gentleMarquee(focused = focused),
+            )
+        }
     }
 }
 

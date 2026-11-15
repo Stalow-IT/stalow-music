@@ -165,13 +165,15 @@ inline fun ListItem(
     ) {
         Box(Modifier.padding(ListThumbnailPadding), contentAlignment = Alignment.Center) { thumbnailContent() }
         Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                // The row's own focus re-arms the one-shot glide for D-pad/TV users.
-                modifier = if (titleMarquee) Modifier.gentleMarquee(focused = isFocused) else Modifier
-            )
+            com.jtech.zemer.ui.component.BidiMarquee(title) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    // The row's own focus re-arms the one-shot glide for D-pad/TV users.
+                    modifier = if (titleMarquee) Modifier.gentleMarquee(focused = isFocused) else Modifier
+                )
+            }
             if (subtitle != null) Row(verticalAlignment = Alignment.CenterVertically) { subtitle() }
         }
         trailingContent()
@@ -423,14 +425,16 @@ fun SongGridItem(
     fillMaxWidth: Boolean = false,
 ) = GridItem(
     title = {
-        Text(
-            text = song.song.title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.basicMarquee().fillMaxWidth()
-        )
+        com.jtech.zemer.ui.component.BidiMarquee(song.song.title) {
+            Text(
+                text = song.song.title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee().fillMaxWidth()
+            )
+        }
     },
     subtitle = {
         Text(
@@ -627,14 +631,16 @@ fun AlbumGridItem(
     fillMaxWidth: Boolean = false,
 ) = GridItem(
     title = {
-        Text(
-            text = album.album.title,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.basicMarquee().fillMaxWidth()
-        )
+        com.jtech.zemer.ui.component.BidiMarquee(album.album.title) {
+            Text(
+                text = album.album.title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee().fillMaxWidth()
+            )
+        }
     },
     subtitle = {
         Text(
@@ -739,14 +745,16 @@ fun PlaylistGridItem(
     fillMaxWidth: Boolean = false,
 ) = GridItem(
     title = {
-        Text(
-            text = playlist.playlist.name,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.basicMarquee().fillMaxWidth()
-        )
+        com.jtech.zemer.ui.component.BidiMarquee(playlist.playlist.name) {
+            Text(
+                text = playlist.playlist.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.basicMarquee().fillMaxWidth()
+            )
+        }
     },
     subtitle = {
         val subtitle = if (autoPlaylist) {
@@ -1041,18 +1049,20 @@ fun YouTubeGridItem(
     titleMarquee = showTitle && (item is PodcastItem || item is EpisodeItem),
     title = {
         if (showTitle) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = if (item is ArtistItem) TextAlign.Center else TextAlign.Start,
-                // Podcast/episode cards marquee via GridItem's titleMarquee wrapper (never doubled);
-                // every other card keeps its pre-existing looping marquee.
-                modifier = if (item is PodcastItem || item is EpisodeItem) Modifier.fillMaxWidth()
-                else Modifier.basicMarquee().fillMaxWidth()
-            )
+            com.jtech.zemer.ui.component.BidiMarquee(item.title) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = if (item is ArtistItem) TextAlign.Center else TextAlign.Start,
+                    // Podcast/episode cards marquee via GridItem's titleMarquee wrapper (never doubled);
+                    // every other card keeps its pre-existing looping marquee.
+                    modifier = if (item is PodcastItem || item is EpisodeItem) Modifier.fillMaxWidth()
+                    else Modifier.basicMarquee().fillMaxWidth()
+                )
+            }
         }
     },
     subtitle = {

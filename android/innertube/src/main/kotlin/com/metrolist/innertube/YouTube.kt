@@ -213,6 +213,19 @@ object YouTube {
         com.metrolist.innertube.pages.StalowPodcastParser.channelSections(json, browseId, channelName)
     }
 
+    /** Stalow: the full list behind a channel shelf's arrow (its "see all" browse link). */
+    suspend fun channelShelfAll(more: BrowseEndpoint, channelId: String, channelName: String): Result<List<YTItem>> = runCatching {
+        // YouTube Music answers a shelf's "see all" only for a visitor ("no public content" otherwise). The app
+        // normally has one from start-up; if not yet, the channel page hands one out.
+        if (visitorData == null) {
+            val home = innerTube.browse(WEB_REMIX, channelId).body<kotlinx.serialization.json.JsonObject>()
+            ((home["responseContext"] as? kotlinx.serialization.json.JsonObject)?.get("visitorData") as? kotlinx.serialization.json.JsonPrimitive)
+                ?.content?.let { visitorData = it }
+        }
+        val json = innerTube.browse(WEB_REMIX, more.browseId, params = more.params).body<kotlinx.serialization.json.JsonObject>()
+        com.metrolist.innertube.pages.StalowPodcastParser.moreItems(json, channelId, channelName)
+    }
+
     /** Stalow: a podcast show ("MPSP" + its playlist id) and its first episodes. */
     suspend fun podcastShow(id: String): Result<com.metrolist.innertube.pages.PodcastPage> = runCatching {
         val browseId = if (id.startsWith("MPSP")) id else "MPSP$id"

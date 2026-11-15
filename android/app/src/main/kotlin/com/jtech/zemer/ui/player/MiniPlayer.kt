@@ -388,7 +388,8 @@ private fun NewMiniPlayer(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                    // 6dp top/bottom (was 10): with the phone's text size set larger, the two lines need the room
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
             ) {
                 // Artwork
                 Box(
@@ -449,15 +450,18 @@ private fun NewMiniPlayer(
                             transitionSpec = { fadeIn() togetherWith fadeOut() },
                             label = "",
                         ) { title ->
-                            Text(
-                                text = title,
-                                color = cardTitle,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.gentleMarquee(),
-                            )
+                            com.jtech.zemer.ui.component.BidiMarquee(title) {
+                                Text(
+                                    text = title,
+                                    color = cardTitle,
+                                    fontSize = 14.sp,
+                                    lineHeight = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.gentleMarquee(),
+                                )
+                            }
                         }
 
                         if (metadata.artists.any { it.name.isNotBlank() }) {
@@ -474,14 +478,17 @@ private fun NewMiniPlayer(
                                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                                     label = "",
                                 ) { artists ->
-                                    Text(
-                                        text = artists,
-                                        color = cardSubtitle,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.gentleMarquee(),
-                                    )
+                                    com.jtech.zemer.ui.component.BidiMarquee(artists) {
+                                        Text(
+                                            text = artists,
+                                            color = cardSubtitle,
+                                            fontSize = 12.sp,
+                                            lineHeight = 15.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.gentleMarquee(),
+                                        )
+                                    }
                                 }
                             }
                         }

@@ -303,14 +303,16 @@ fun Thumbnail(
                                 text = stringResource(R.string.stalow_playing_from),
                                 color = textBackgroundColor.copy(alpha = 0.65f),
                             )
-                            Text(
-                                text = playingFrom,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = textBackgroundColor,
-                                maxLines = 1,
-                                modifier = Modifier.basicMarquee(),
-                            )
+                            com.jtech.zemer.ui.component.BidiMarquee(playingFrom) {
+                                Text(
+                                    text = playingFrom,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = textBackgroundColor,
+                                    maxLines = 1,
+                                    modifier = Modifier.basicMarquee(),
+                                )
+                            }
                         }
                     }
                     if (onMore != null) {

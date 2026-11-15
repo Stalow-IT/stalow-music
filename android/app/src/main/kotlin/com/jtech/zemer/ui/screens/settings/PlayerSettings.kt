@@ -80,6 +80,7 @@ fun PlayerSettings(
         defaultValue = VideoQualityLogic.AUTO
     )
     val (blockVideos, _) = rememberPreference(BlockVideosKey, defaultValue = false)
+    val (videoFirst, onVideoFirstChange) = rememberPreference(com.jtech.zemer.constants.VideoFirstKey, defaultValue = true)
     val (persistentQueue, onPersistentQueueChange) = rememberPreference(
         PersistentQueueKey,
         defaultValue = true
@@ -259,6 +260,20 @@ fun PlayerSettings(
                 }
             },
         )
+
+        if (!blockVideos) {
+            SettingsCardGroup(
+                rows = listOf({
+                    SwitchPreference(
+                        title = { Text(stringResource(R.string.stalow_video_first)) },
+                        description = stringResource(R.string.stalow_video_first_desc),
+                        icon = { Icon(painterResource(R.drawable.ondemand_video), null) },
+                        checked = videoFirst,
+                        onCheckedChange = onVideoFirstChange,
+                    )
+                }),
+            )
+        }
 
         SettingsCardGroup(
             title = stringResource(R.string.queue),

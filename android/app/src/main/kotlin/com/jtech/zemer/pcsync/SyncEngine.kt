@@ -62,6 +62,7 @@ object SyncProtocol {
     val SHARED_SETTINGS = listOf(
         "theme", "allowFemale", "blockPodcasts", "blockVideos", "audioNormalization", "skipSilence", "persistentQueue",
         "autoLoadMore", "lyricsWordSync", "lyricsAutoScroll", "lyricsPosition", "pauseListenHistory", "pauseSearchHistory",
+        "videoFirst",
     )
 }
 

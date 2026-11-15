@@ -1827,6 +1827,8 @@ class MusicService :
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+        // Stalow: a video or podcast starts as video once playback actually starts (not on a paused queue restore)
+        if (playWhenReady) videoModeController.recomputeNow()
         if (playWhenReady) {
             markUserIntent() // a play from anywhere (headset, Auto, the resume chip) is intent
             setupLoudnessEnhancer()

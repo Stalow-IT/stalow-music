@@ -96,6 +96,7 @@ import com.jtech.zemer.ui.component.LocalMenuState
 import com.jtech.zemer.ui.component.heroCarouselFlingBehavior
 import com.jtech.zemer.ui.component.MoreVertMenuButton
 import com.jtech.zemer.extensions.toMediaItem
+import com.jtech.zemer.extensions.toast
 import com.jtech.zemer.playback.queues.ListQueue
 import com.jtech.zemer.tracking.PlaySource
 import com.jtech.zemer.ui.component.NavigationTitle
@@ -172,6 +173,8 @@ fun HomeScreen(
     val playerConnection = LocalPlayerConnection.current ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
+    var stalowBookmarksJson by rememberPreference(com.jtech.zemer.playback.BookmarksKey, "")
+    val stalowBookmarks = remember(stalowBookmarksJson) { com.jtech.zemer.playback.Bookmarks.decode(stalowBookmarksJson) }
 
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -610,6 +613,37 @@ fun HomeScreen(
                             offer = offer,
                             onContinue = { playerConnection.playQueue(pcContinueQueue(offer)); pcContinued++ },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).animateItem(),
+                        )
+                    }
+                }
+
+                // Stalow: the places saved with the player's Bookmark button (tap = carry on, long press = remove).
+                if (stalowBookmarks.isNotEmpty()) {
+                    item(key = "stalow_bookmarks_title", contentType = "header") {
+                        NavigationTitle(
+                            title = stringResource(R.string.stalow_bookmarks),
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                    item(key = "stalow_bookmarks_row", contentType = "row") {
+                        HomeBookmarksRow(
+                            bookmarks = stalowBookmarks,
+                            onOpen = { bookmark ->
+                                playerConnection.playQueue(
+                                    ListQueue(
+                                        title = bookmark.title,
+                                        items = listOf(bookmark.toMediaMetadata().toMediaItem()),
+                                        position = bookmark.positionMs,
+                                        playSource = if (bookmark.isEpisode) PlaySource.podcast(null) else PlaySource.OTHER,
+                                    ),
+                                )
+                            },
+                            onRemove = { bookmark ->
+                                stalowBookmarksJson = com.jtech.zemer.playback.Bookmarks.encode(
+                                    com.jtech.zemer.playback.Bookmarks.remove(stalowBookmarks, bookmark.id),
+                                )
+                                context.toast(R.string.stalow_bookmark_removed)
+                            },
                         )
                     }
                 }

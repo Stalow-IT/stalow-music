@@ -226,6 +226,7 @@ class PcSync @Inject constructor(
             "lyricsAutoScroll" to LyricsScrollKey,
             "pauseListenHistory" to PauseListenHistoryKey,
             "pauseSearchHistory" to PauseSearchHistoryKey,
+            "videoFirst" to com.jtech.zemer.constants.VideoFirstKey,
         )
         private val SHARED_KEYS: List<Preferences.Key<*>> = BOOLEANS.values.toList() + DarkModeKey + LyricsTextPositionKey
 

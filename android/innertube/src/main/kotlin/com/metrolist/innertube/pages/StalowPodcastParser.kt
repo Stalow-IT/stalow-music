@@ -1,7 +1,11 @@
 package com.metrolist.innertube.pages
 
 import com.metrolist.innertube.models.Album
+import com.metrolist.innertube.models.AlbumItem
 import com.metrolist.innertube.models.Artist
+import com.metrolist.innertube.models.BrowseEndpoint
+import com.metrolist.innertube.models.PlaylistItem
+import com.metrolist.innertube.models.SongItem
 import com.metrolist.innertube.models.EpisodeItem
 import com.metrolist.innertube.models.PodcastItem
 import com.metrolist.innertube.models.WatchEndpoint
@@ -20,7 +24,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * Windows app (src/ytm.js parseMultiRow).
  */
 object StalowPodcastParser {
-    data class Section(val title: String, val items: List<YTItem>)
+    data class Section(val title: String, val items: List<YTItem>, val more: BrowseEndpoint? = null)
 
     private fun JsonElement?.obj(key: String): JsonObject? = (this as? JsonObject)?.get(key) as? JsonObject
     private fun JsonElement?.arr(key: String): JsonArray? = (this as? JsonObject)?.get(key) as? JsonArray
@@ -111,8 +115,71 @@ object StalowPodcastParser {
                 x.obj("musicMultiRowListItemRenderer")?.let { episode(it, channel) }
                     ?: x.obj("musicTwoRowItemRenderer")?.let { show(it) }
             }.orEmpty()
-            if (items.isEmpty()) null else Section(title, items)
+            if (items.isEmpty()) null else Section(title, items, moreOf(shelf))
         }
+    }
+
+    /** A shelf's "see all" link (the arrow): the header's More button, or its title link. */
+    fun moreOf(shelf: JsonElement?): BrowseEndpoint? {
+        val h = shelf.at("header", "musicCarouselShelfBasicHeaderRenderer")
+        val be = h.at("moreContentButton", "buttonRenderer", "navigationEndpoint", "browseEndpoint")
+            ?: h.obj("title").arr("runs")?.firstOrNull().at("navigationEndpoint", "browseEndpoint")
+            ?: return null
+        return BrowseEndpoint(browseId = be.str("browseId") ?: return null, params = be.str("params"))
+    }
+
+    /** One grid card on a "see all" page: a video, album/single, playlist or podcast show. */
+    fun card(r: JsonElement?, channel: Artist?): YTItem? {
+        val title = runsText(r.obj("title")).ifEmpty { return null }
+        val subtitle = r.obj("subtitle").arr("runs")
+        val thumb = bestThumb(r.obj("thumbnailRenderer"))
+        val watch = r.at("navigationEndpoint", "watchEndpoint")
+        watch.str("videoId")?.let { id ->
+            return SongItem(
+                id = id, title = title, artists = listOfNotNull(channelRun(subtitle) ?: channel),
+                thumbnail = thumb ?: "https://i.ytimg.com/vi/$id/hqdefault.jpg",
+                endpoint = WatchEndpoint(videoId = id, params = watch.str("params")), isVideo = true,
+            )
+        }
+        show(r)?.let { return it }
+        val be = r.at("navigationEndpoint", "browseEndpoint") ?: return null
+        val id = be.str("browseId") ?: return null
+        val type = pageType(be)
+        val author = channelRun(subtitle) ?: channel
+        return when {
+            type.contains("ALBUM") -> AlbumItem(
+                browseId = id,
+                playlistId = r.at("thumbnailOverlay", "musicItemThumbnailOverlayRenderer", "content", "musicPlayButtonRenderer",
+                    "playNavigationEndpoint", "watchPlaylistEndpoint").str("playlistId") ?: id,
+                title = title, artists = listOfNotNull(author),
+                year = subtitle?.mapNotNull { it.str("text")?.toIntOrNull() }?.firstOrNull { it in 1900..2100 },
+                thumbnail = thumb ?: return null,
+            )
+            type.contains("PLAYLIST") -> PlaylistItem(
+                id = id.removePrefix("VL"), title = title, author = author, songCountText = null,
+                thumbnail = thumb, playEndpoint = null, shuffleEndpoint = null, radioEndpoint = null,
+            )
+            else -> null
+        }
+    }
+
+    /** Everything on a channel shelf's "see all" page (episodes, videos, albums, playlists, shows), in order. */
+    fun moreItems(json: JsonElement, channelId: String, channelName: String): List<YTItem> {
+        val channel = Artist(name = channelName, id = channelId)
+        val out = mutableListOf<YTItem>()
+        fun walk(x: JsonElement?) {
+            when (x) {
+                is JsonArray -> x.forEach(::walk)
+                is JsonObject -> {
+                    x.obj("musicMultiRowListItemRenderer")?.let { r -> episode(r, channel)?.let(out::add); return }
+                    x.obj("musicTwoRowItemRenderer")?.let { r -> card(r, channel)?.let(out::add); return }
+                    x.values.forEach(::walk)
+                }
+                else -> {}
+            }
+        }
+        walk(json.at("contents"))
+        return out.distinctBy { it.id }
     }
 
     /** A podcast show page (browse "MPSP…"): the show and its first episodes. */

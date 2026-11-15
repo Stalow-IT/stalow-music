@@ -102,8 +102,18 @@ function updateThumbar(playing) {
 const handlers = {
   'catalog:search': async (q) => searchAll(api, catalog, q),
   'catalog:artists': async (text) => catalog.findArtists(text),
+  // the approved Podcasts, Shiurim and Videos channels: their uploads start as video (music stays audio)
+  'catalog:channelIds': async () => [...catalog.channels.keys()],
   'catalog:channels': async ({ category, text } = {}) => catalog.channelList(category, text),
   'catalog:home': async (recentArtistIds) => ({ artists: catalog.homeArtists(recentArtistIds, 18) }),
+  // the full list behind a shelf's "See all" on an artist or channel page
+  'catalog:shelf': async ({ id, name, more } = {}) => {
+    if (typeof id !== 'string' || !catalog.canOpen(id)) return { notApproved: true };
+    if (!more || typeof more.browseId !== 'string' || !/^[\w-]{2,80}$/.test(more.browseId) || (more.params !== undefined && (typeof more.params !== 'string' || more.params.length > 2000))) throw new Error('Bad link');
+    const items = catalog.filterItems(await api.shelf({ browseId: more.browseId, params: more.params }, { artists: [{ id, name: String(name || '') }] }), id);
+    const full = new Set((await keepFullPlaylists(api, catalog, items.filter((x) => x.type === 'playlist'), true)).map((p) => p.id));
+    return { items: items.filter((x) => x.type !== 'playlist' || full.has(x.id)) };
+  },
   'catalog:artist': async (id) => {
     if (!catalog.canOpen(id)) return { notApproved: true };
     const page = await api.artist(id);
@@ -222,6 +232,12 @@ const handlers = {
   },
   'app:signin': async () => player.showSignIn(),
   'app:togglePlayer': async () => player.toggleVisible(),
+  // Videos and podcasts as video: 'full', 'window' or 'off' (audio only), with the bar's texts in the app language
+  'player:video': async ({ mode, labels } = {}) => {
+    const clean = {};
+    for (const [k, v] of Object.entries(labels && typeof labels === 'object' ? labels : {})) if (/^\w{1,20}$/.test(k) && typeof v === 'string') clean[k] = v.slice(0, 60);
+    return player.showVideo(['full', 'window'].includes(mode) ? mode : 'off', clean);
+  },
   'app:openExternal': async (url) => { if (/^https:\/\//.test(url)) await shell.openExternal(url); },
   'app:checkUpdates': async () => checkForUpdates(true),
   'app:installUpdate': async (resume) => {

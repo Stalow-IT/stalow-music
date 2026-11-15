@@ -14,7 +14,7 @@ const SYNC_URL = 'https://dzrnortzhpnoussbeedv.supabase.co/functions/v1/stalow-s
 const CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 /** Settings that both apps have, under the Windows app's names. */
 const SHARED_SETTINGS = ['theme', 'allowFemale', 'blockPodcasts', 'blockVideos', 'audioNormalization', 'skipSilence', 'persistentQueue',
-  'autoLoadMore', 'lyricsWordSync', 'lyricsAutoScroll', 'lyricsPosition', 'pauseListenHistory', 'pauseSearchHistory', 'historyDays'];
+  'autoLoadMore', 'lyricsWordSync', 'lyricsAutoScroll', 'lyricsPosition', 'pauseListenHistory', 'pauseSearchHistory', 'historyDays', 'videoFirst'];
 
 /** A new sync code: 24 characters in groups of four, about 120 bits. */
 function newCode(random = crypto.randomBytes) {

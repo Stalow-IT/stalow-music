@@ -78,8 +78,13 @@ fun ArtistSectionScreen(
 ) {
     val artistPage = viewModel.artistPage
     val isLoading = viewModel.isLoading
+    // An older build put "+" for spaces in the title ("Latest+episodes"), which matched no shelf.
     val section = artistPage?.sections?.firstOrNull { it.title == sectionTitle }
-    val items = section?.items?.distinctBy { it.id }.orEmpty()
+        ?: artistPage?.sections?.firstOrNull { it.title == sectionTitle.replace('+', ' ') }
+    // The full list behind the arrow (YouTube Music gives the channel page only its first ~10).
+    LaunchedEffect(section?.title) { section?.title?.let(viewModel::loadShelfAll) }
+    val fullList = section?.title?.let { viewModel.shelfAll[it] }
+    val items = (fullList ?: section?.items)?.distinctBy { it.id }.orEmpty()
     val isVideoSection = sectionTitle.contains("video", ignoreCase = true) ||
         sectionTitle.contains("short", ignoreCase = true)
     val isSongList = items.firstOrNull() is SongItem && !isVideoSection
@@ -89,7 +94,8 @@ fun ArtistSectionScreen(
     // cursor-driven — a pre-paging server / the offline snapshot just never sets a cursor). Off-composition
     // snapshotFlow, the GenreScreen tracklist pattern. Episodes render as a vertical LIST (the shared
     // YouTubeListItem row, like the search episode rows) — dated long-form rows read as a feed, not a grid.
-    val pagedEpisodes = viewModel.isPodcastChannel && sectionTitle == ZemerResultMapper.TITLE_EPISODES
+    val pagedEpisodes = (viewModel.isPodcastChannel && sectionTitle == ZemerResultMapper.TITLE_EPISODES) ||
+        items.firstOrNull() is EpisodeItem // a channel's "Latest episodes" arrow: the same episode list
     val episodeListState = rememberLazyListState()
     // Channel-wide episode search (the shared ArtistSearchField, like the Artists/Podcasts browse
     // screens): a CLIENT-side title filter over the loaded pages, with an explicit QUERY-DRIVEN

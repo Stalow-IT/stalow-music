@@ -7,8 +7,10 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.datastore.preferences.core.edit
 import com.jtech.zemer.constants.BlockVideosKey
 import com.jtech.zemer.constants.VideoQualityKey
+import com.jtech.zemer.constants.VideoFirstKey
 import com.jtech.zemer.playback.VideoModeLogic.RenditionKind
 import com.jtech.zemer.playback.VideoModeLogic.TransitionClass
 import com.jtech.zemer.utils.BlockedIdsCache
@@ -194,7 +196,46 @@ class VideoModeController(
 
     /** Recompute availability in the CALLER's stack (main) — see [videoModeAvailable]. */
     fun recomputeNow() {
-        _videoModeAvailable.value = computeAvailability() != null
+        val rendition = computeAvailability()
+        _videoModeAvailable.value = rendition != null
+        maybeStartAsVideo(rendition)
+    }
+
+    // ---- Stalow: videos and podcasts start as video ------------------------
+
+    // The VideoFirstKey preference (default on), kept current by the collector in init{}.
+    @Volatile
+    private var videoFirst = true
+    // The item video was last started for automatically: once per item, so leaving video (Audio only,
+    // lyrics, an error) is never undone by the next availability recompute of the same item.
+    private var autoStartedId: String? = null
+
+    /**
+     * A podcast episode or an approved Podcasts / Shiurim / Videos channel's upload (the item IS a video:
+     * SELF or a downloaded LOCAL file) starts as video when the preference is on. Music stays audio. Availability can arrive
+     * after the audio starts (the type is learned from the stream), so this runs on every recompute.
+     */
+    private fun maybeStartAsVideo(rendition: VideoModeLogic.Rendition?) {
+        if (!videoFirst || rendition == null || _isVideoMode.value) return
+        // Only once playback is starting: a queue restored paused at app start must not open full screen.
+        if (!player.playWhenReady) return
+        if (rendition.kind != RenditionKind.SELF && rendition.kind != RenditionKind.LOCAL) return
+        val meta = service.currentMediaMetadata.value ?: return
+        val id = meta.id
+        // Music (also a music video) stays audio; only podcasts, shiurim and Videos-channel uploads start as video.
+        if (!com.jtech.zemer.utils.StalowChannels.startsAsVideo(meta.isEpisode, meta.artists.map { it.id })) return
+        if (autoStartedId == id) return
+        autoStartedId = id
+        mainHandler.post {
+            if (service.currentMediaMetadata.value?.id == id && !_isVideoMode.value) setVideoMode(true)
+        }
+    }
+
+    /** The player's Video / Audio only choice: switches now, and is remembered for the next videos and podcasts. */
+    fun chooseVideo(video: Boolean) {
+        videoFirst = video
+        scope.launch { service.dataStore.edit { it[VideoFirstKey] = video } }
+        setVideoMode(video)
     }
 
     /**
@@ -239,6 +280,9 @@ class VideoModeController(
                 blockVideosNow = blocked
                 if (blocked && _isVideoMode.value) revertToAudio()
             }
+        }
+        scope.launch {
+            service.dataStore.data.map { it[VideoFirstKey] ?: true }.distinctUntilChanged().collect { videoFirst = it }
         }
         // The persisted default quality target (the Settings preference) — applies to NEW plays;
         // an in-player pick overrides it per item via qualityOverrides.
@@ -446,12 +490,19 @@ class VideoModeController(
         videoReachedReady = false
     }
 
+    /**
+     * Renditions that already played as video this session, by item id (see
+     * [VideoModeLogic.stickyAvailability]): switching back to audio must never hide the way back to video.
+     * Main-thread only, like the rest of the swap state.
+     */
+    private val playedRenditions = HashMap<String, VideoModeLogic.Rendition>()
+
     /** Pure availability for the CURRENT item (null ⇒ no toggle). Recomputed by [videoModeAvailable]. */
     private fun computeAvailability(): VideoModeLogic.Rendition? {
         val meta = service.currentMediaMetadata.value ?: return null
         val id = meta.id
         val avail = availabilityCache.get(id)
-        return VideoModeLogic.availability(
+        val fresh = VideoModeLogic.availability(
             mediaId = id,
             casting = service.discoveryHandler.isConnected,
             // Unknown (not-yet-collected) reads as BLOCKED — never leak the toggle while the real
@@ -468,6 +519,15 @@ class VideoModeController(
             // LEARNED musicVideoType (including ATV) still overrides both — see availability().
             corpusVideoSong = VideoSongIds.contains(id) || meta.isVideo,
             counterpartVideoId = avail?.counterpartVideoId,
+            isBlockedRendition = { rid -> BlockedIdsCache.isBlocked(rid, ContentFilterState.current) },
+        )
+        return VideoModeLogic.stickyAvailability(
+            fresh = fresh,
+            prior = playedRenditions[id],
+            casting = service.discoveryHandler.isConnected,
+            blockVideos = blockVideosNow ?: true,
+            stationBroadcast = service.isStationBroadcast.value,
+            online = service.isNetworkConnected.value,
             isBlockedRendition = { rid -> BlockedIdsCache.isBlocked(rid, ContentFilterState.current) },
         )
     }
@@ -644,6 +704,7 @@ class VideoModeController(
         videoModeItemIndex = index
         videoModeAudioItem = audioItem
         renditionKind = rendition.kind
+        if (rendition.kind != RenditionKind.LOCAL) playedRenditions[audioItem.mediaId] = rendition
         videoRenditionId = rendition.renditionVideoId
         currentSurface?.let { player.setVideoTextureView(it) }
 
@@ -831,6 +892,7 @@ class VideoModeController(
             mainHandler.post {
                 pendingSwap = false
                 clearState()
+                recomputeNow()
             }
         } else {
             clearState()

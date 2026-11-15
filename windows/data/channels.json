@@ -1,5 +1,5 @@
 {
- "version": 2,
+ "version": 3,
  "podcasts": [
   {
    "id": "UCp3HDDoqMXaNOCkqKz7EjiQ",
@@ -144,6 +144,11 @@
    "id": "UCzvvGSpBRS__42lsKaSftfQ",
    "name": "Bechatzros Kodshenu",
    "thumbnailUrl": "https://yt3.ggpht.com/iSdOHGinrkzrv5bkpVm9HxIRneoRd6RC_-LhEboEUX-78OpwALgcKEeepxEssOb6dTHx4Mym=s176-c-k-c0x00ffffff-no-rj-mo"
+  },
+  {
+   "id": "UCSVBFqUiFEniJXvXKdWFI8g",
+   "name": "Bishtene",
+   "thumbnailUrl": "https://yt3.googleusercontent.com/iIBnwm_zsjrqi1WUvfEyB7oMvq1J2PNHnVREUFqen1HuBG0qxFNqEolr2K8Ak4s2CLuwhUbC=w226-h226-l90-rj"
   },
   {
    "id": "UCzLd7ArWyNtg9zxXPJINaTA",

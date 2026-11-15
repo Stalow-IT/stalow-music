@@ -171,12 +171,26 @@ class LocalCatalog(private val database: MusicDatabase) {
         // Podcast channels: "Latest episodes" and "Podcasts" (shows), which the artist page reader skips.
         val podcastSections = YouTube.channelPodcastSections(id, page.artist.title).getOrNull().orEmpty()
             .filter { ps -> page.sections.none { it.title == ps.title } }
-            .map { com.metrolist.innertube.pages.ArtistSection(title = it.title, items = it.items, moreEndpoint = null) }
+            .map { com.metrolist.innertube.pages.ArtistSection(title = it.title, items = it.items, moreEndpoint = it.more) }
         val sections = (podcastSections + page.sections).mapNotNull { section ->
             val items = section.items.filterWhitelisted(database, config, fallbackArtistId = id)
             if (items.isEmpty()) null else section.copy(items = items)
         }
         return page.copy(sections = sections)
+    }
+
+    /**
+     * Everything behind a shelf's arrow on an artist or channel page (YouTube Music gives a page only its
+     * first ~10): all videos, episodes, albums or playlists, filtered like the page itself.
+     */
+    suspend fun shelfAll(pageId: String, pageTitle: String, more: com.metrolist.innertube.models.BrowseEndpoint): List<YTItem> {
+        if (!isApprovedArtist(pageId) && !approvedChannelPasses(listOf(pageId), config)) return emptyList()
+        val items: List<YTItem> = if (more.browseId.startsWith("VL") && more.params == null) {
+            playlist(more.browseId.removePrefix("VL")).second
+        } else {
+            YouTube.channelShelfAll(more, pageId, pageTitle).getOrElse { throw it.asIo("shelf") }
+        }
+        return items.filterWhitelisted(database, config, fallbackArtistId = pageId)
     }
 
     /** A podcast show by an approved channel, with its first episodes; null when the show's channel is not approved. */

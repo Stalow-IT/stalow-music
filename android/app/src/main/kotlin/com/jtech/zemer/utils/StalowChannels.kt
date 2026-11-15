@@ -73,4 +73,11 @@ object StalowChannels {
 
     /** The channel ids listed under [category]. */
     fun ids(category: Category): Set<String> = idsByCategory[category].orEmpty()
+
+    /** Every approved Podcasts, Shiurim or Videos channel id (not music artists). */
+    val allIds: Set<String> by lazy { idsByCategory.values.flatten().toSet() }
+
+    /** Starts as video (Settings > Player): a podcast episode, or an upload by an approved Podcasts, Shiurim or Videos channel. Music stays audio. */
+    fun startsAsVideo(isEpisode: Boolean, artistIds: List<String?>): Boolean =
+        isEpisode || artistIds.any { it != null && it in allIds }
 }

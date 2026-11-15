@@ -58,7 +58,8 @@ fun downloadMenuItem(
         )
         DownloadRowKind.DOWNLOAD_VIDEO -> Material3MenuItemData(
             icon = { Icon(painterResource(R.drawable.download), null, Modifier.size(24.dp)) },
-            title = { Text(stringResource(R.string.download_video_to_device)) },
+            // Stalow: downloads are always the sound (DownloadUtil.downloadVideoToMediaStore saves audio).
+            title = { Text(stringResource(R.string.download_to_device)) },
             onClick = onDownload,
         )
         DownloadRowKind.DOWNLOAD -> Material3MenuItemData(

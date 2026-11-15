@@ -45,3 +45,18 @@ test('a podcast channel page shows its latest episodes and its shows', () => {
   assert.deepStrictEqual(page.sections.map((s) => [s.title, s.items.length]), [['Latest episodes', 1], ['Podcasts', 1]]);
   assert.strictEqual(page.sections[0].items[0].artists[0].name, '18Forty');
 });
+
+test('a shelf keeps its "see all" link, and the see-all page has every item', () => {
+  const { parseShelfAll } = require('../src/ytm');
+  const head = { musicCarouselShelfBasicHeaderRenderer: { title: { runs: [{ text: 'Videos' }] }, moreContentButton: { buttonRenderer: { navigationEndpoint: { browseEndpoint: { browseId: 'UC0b5Mwp', params: 'EgZ2aWRlb3M' } } } } } };
+  const video = (i) => ({ musicTwoRowItemRenderer: { title: { runs: [{ text: 'Video ' + i }] }, navigationEndpoint: { watchEndpoint: { videoId: 'VIDEO000' + String(i).padStart(3, '0') } } } });
+  const json = { header: {}, contents: { singleColumnBrowseResultsRenderer: { tabs: [{ tabRenderer: { content: { sectionListRenderer: { contents: [
+    { musicCarouselShelfRenderer: { header: head, contents: [video(1)] } }] } } } }] } } };
+  assert.deepStrictEqual(parseArtist(json, 'UC0b5Mwp').sections[0].more, { browseId: 'UC0b5Mwp', params: 'EgZ2aWRlb3M' });
+  const all = { contents: { singleColumnBrowseResultsRenderer: { tabs: [{ tabRenderer: { content: { sectionListRenderer: { contents: [
+    { gridRenderer: { items: [...Array.from({ length: 30 }, (_, i) => video(i)), { musicMultiRowListItemRenderer: episode }] } }] } } } }] } } };
+  const items = parseShelfAll(all, { artists: [{ id: 'UC0b5Mwp', name: 'Ah Blick Live' }] });
+  assert.strictEqual(items.length, 31);
+  assert.strictEqual(items[0].artists[0].id, 'UC0b5Mwp', 'videos are by the channel');
+  assert.strictEqual(items[30].isPodcast, true);
+});
