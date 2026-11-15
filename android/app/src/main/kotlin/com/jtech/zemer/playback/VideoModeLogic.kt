@@ -102,6 +102,31 @@ object VideoModeLogic {
     }
 
     /**
+     * Stalow: the Song/Video toggle must not vanish after the user switches a video to audio. Leaving video
+     * mode re-prepares the audio stream, and that resolution can report a type that makes [availability]
+     * say "no video" (e.g. a podcast episode, or an ATV verdict with no counterpart yet), which hid the pill
+     * and left no way back to video. An item that already played as video this session keeps its
+     * [prior] rendition, unless video became impossible (casting, blocked, station, offline, or the
+     * rendition itself blocked). A LOCAL prior is never reused: it depends on the file still being the
+     * playing source, which [availability] already checks.
+     */
+    fun stickyAvailability(
+        fresh: Rendition?,
+        prior: Rendition?,
+        casting: Boolean,
+        blockVideos: Boolean,
+        stationBroadcast: Boolean,
+        online: Boolean,
+        isBlockedRendition: (String) -> Boolean,
+    ): Rendition? {
+        if (fresh != null) return fresh
+        if (prior == null || prior.kind == RenditionKind.LOCAL) return null
+        if (casting || blockVideos || stationBroadcast || !online) return null
+        val id = prior.renditionVideoId ?: return null
+        return if (isBlockedRendition(id)) null else prior
+    }
+
+    /**
      * Whether the availability cache should be probed on-demand for the current item — true only when a
      * counterpart could still turn up (type is ATV or unknown AND we haven't resolved a counterpart yet)
      * and video is otherwise permitted. Keeps the UI from firing a `next()` for items we already know

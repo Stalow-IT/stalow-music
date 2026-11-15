@@ -65,7 +65,7 @@ class EpisodePositionTracker(
         previousEpisodePosition = 0L
 
         val meta = incoming?.metadata
-        if (!isCasting() && meta?.isEpisode == true) {
+        if (!isCasting() && meta != null && meta.tracksPosition()) {
             val id = incoming.mediaId
             previousEpisodeId = id // start tracking the incoming episode
             // A song -> episode switch keeps isPlaying true, so onIsPlayingChanged never fires to start
@@ -100,7 +100,7 @@ class EpisodePositionTracker(
      * write since the player is about to go away.
      */
     fun onDestroyFlush() {
-        player.currentMediaItem?.metadata?.takeIf { it.isEpisode && !isCasting() }?.let { meta ->
+        player.currentMediaItem?.metadata?.takeIf { it.tracksPosition() && !isCasting() }?.let { meta ->
             val positionMs = player.currentPosition
             if (EpisodeResume.shouldSave(positionMs)) {
                 runBlocking(Dispatchers.IO) { database.updateEpisodePosition(meta.id, positionMs) }
@@ -115,7 +115,7 @@ class EpisodePositionTracker(
     private fun startPositionSaver() {
         if (positionSaverJob?.isActive == true) return
         // Episodes only - never wake every 15s on the common music path (the loop would just no-op).
-        if (player.currentMediaItem?.metadata?.isEpisode != true) return
+        if (player.currentMediaItem?.metadata?.tracksPosition() != true) return
         positionSaverJob = scope.launch(Dispatchers.Main) {
             while (isActive && player.isPlaying) {
                 saveIfNeeded()
@@ -130,7 +130,7 @@ class EpisodePositionTracker(
         if (isCasting()) return
         val item = player.currentMediaItem ?: return
         val meta = item.metadata ?: return
-        if (!meta.isEpisode) return
+        if (!meta.tracksPosition()) return
         val id = item.mediaId
         val positionMs = player.currentPosition
         previousEpisodeId = id
@@ -155,3 +155,6 @@ class EpisodePositionTracker(
         }
     }
 }
+
+/** Episodes and long items (see [EpisodeResume.tracksPosition]) remember where you stopped. */
+private fun MediaMetadata.tracksPosition(): Boolean = EpisodeResume.tracksPosition(isEpisode, duration)

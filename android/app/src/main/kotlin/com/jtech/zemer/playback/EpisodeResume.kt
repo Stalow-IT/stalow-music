@@ -23,6 +23,16 @@ object EpisodeResume {
         return true
     }
 
+    /**
+     * Stalow: items this long (a shiur, a long video, a podcast published as a plain video) also remember
+     * where you stopped, like episodes. Songs are far shorter, so music behaviour is unchanged.
+     */
+    const val LONG_ITEM_SECONDS = 20 * 60
+
+    /** Whether the resume position of an item is saved and restored: episodes, and anything long. */
+    fun tracksPosition(isEpisode: Boolean, durationSeconds: Int): Boolean =
+        isEpisode || durationSeconds >= LONG_ITEM_SECONDS
+
     /** Whether a position is worth persisting (past the "at the beginning" edge). */
     fun shouldSave(positionMs: Long): Boolean = positionMs > RESUME_EDGE_MS
 

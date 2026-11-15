@@ -524,4 +524,9 @@
     <string name="stalow_sleep">Sleep</string>
     <string name="stalow_download_video">Download video</string>
     <string name="stalow_video_downloaded">Video downloaded</string>
+    <string name="stalow_bookmark">Bookmark</string>
+    <string name="stalow_bookmark_saved">Bookmark saved at %1$s</string>
+    <string name="stalow_bookmarks">Bookmarks</string>
+    <string name="stalow_bookmark_at">At %1$s</string>
+    <string name="stalow_bookmark_removed">Bookmark removed</string>
 </resources>

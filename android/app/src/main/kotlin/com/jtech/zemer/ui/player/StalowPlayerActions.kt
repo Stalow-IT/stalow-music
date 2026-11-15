@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +56,16 @@ fun StalowPlayerActionRow(
         modifier = modifier.fillMaxWidth(),
     ) {
         StalowActionTile(R.drawable.queue_music, stringResource(R.string.stalow_up_next), onUpNext, Modifier.weight(1f))
-        if (onLyrics != null) {
+        // Stalow: podcasts and long items get Bookmark (and Video when listening as audio) instead of Lyrics,
+        // so the row keeps room on a phone.
+        val bookmarkable = com.jtech.zemer.playback.Bookmarks.offeredFor(mediaMetadata)
+        if (onLyrics != null && !bookmarkable) {
             StalowActionTile(R.drawable.lyrics, stringResource(R.string.stalow_lyrics), onLyrics, Modifier.weight(1f))
         }
+        if (mediaMetadata != null && bookmarkable) {
+            StalowBookmarkButton(mediaMetadata, Modifier.weight(1f))
+        }
+        StalowWatchVideoTile(Modifier.weight(1f))
         if (mediaMetadata != null && !mediaMetadata.isEpisode) {
             StalowDownloadButton(mediaMetadata, Modifier.weight(1f))
         }
@@ -143,6 +151,52 @@ private fun StalowDownloadButton(mediaMetadata: MediaMetadata, modifier: Modifie
                 }
             }
         },
+        modifier = modifier,
+    )
+}
+
+/**
+ * Stalow: saves the exact place in a podcast, shiur or long video, so you can play music in between and
+ * come back to it from Home > Bookmarks. Offered for episodes and long items ([com.jtech.zemer.playback.Bookmarks.offeredFor]).
+ */
+@Composable
+private fun StalowBookmarkButton(mediaMetadata: MediaMetadata, modifier: Modifier = Modifier) {
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var saved by rememberPreference(com.jtech.zemer.playback.BookmarksKey, "")
+    StalowActionTile(
+        icon = R.drawable.bookmark,
+        label = stringResource(R.string.stalow_bookmark),
+        onClick = {
+            val position = playerConnection.player.currentPosition
+            val bookmark = com.jtech.zemer.playback.Bookmarks.of(mediaMetadata, position, System.currentTimeMillis())
+            saved = com.jtech.zemer.playback.Bookmarks.encode(
+                com.jtech.zemer.playback.Bookmarks.add(com.jtech.zemer.playback.Bookmarks.decode(saved), bookmark),
+            )
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.stalow_bookmark_saved, com.jtech.zemer.utils.makeTimeString(position)),
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+        },
+        modifier = modifier,
+    )
+}
+
+/**
+ * Stalow: the way back to video after Audio only. Shown only while the item plays as audio and has a
+ * video (the same availability as the Song/Video pill); a tap switches to video and remembers the choice.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.StalowWatchVideoTile(modifier: Modifier = Modifier) {
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val available by playerConnection.videoModeAvailable.collectAsState()
+    val isVideoMode by playerConnection.isVideoMode.collectAsState()
+    if (!available || isVideoMode) return
+    StalowActionTile(
+        icon = R.drawable.ondemand_video,
+        label = stringResource(R.string.video),
+        onClick = { playerConnection.chooseVideo(true) },
         modifier = modifier,
     )
 }
