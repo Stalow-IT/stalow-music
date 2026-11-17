@@ -67,7 +67,8 @@ data class LatestRelease(
  */
 object LatestReleasesStore {
     private const val TAG = "Zemer_LatestReleases"
-    private const val FEED_URL = ""
+    // Stalow's own feed: the approved artists' new albums and singles (the stalow-releases edge function).
+    private const val FEED_URL = "https://dzrnortzhpnoussbeedv.supabase.co/functions/v1/stalow-releases"
     private const val MAX_ATTEMPTS = 3
 
     // A cached feed older than this (since its last successful fetch) is treated as gone: the server
@@ -175,8 +176,6 @@ object LatestReleasesStore {
     }
 
     private suspend fun httpFetch(etag: String?): FetchOutcome {
-        // Stalow Music: the original releases feed was hosted by one of the original developers, so it is
-        // never contacted; with no feed the Latest Releases row stays hidden (empty).
         if (FEED_URL.isBlank()) return FetchOutcome.Failure
         val response: HttpResponse = httpClient.get(FEED_URL) {
             if (!etag.isNullOrEmpty()) header(HttpHeaders.IfNoneMatch, etag)

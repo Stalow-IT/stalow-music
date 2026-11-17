@@ -307,4 +307,5 @@
     <string name="stalow_weak_connection_audio">החיבור איטי מדי לווידאו: מתנגן כשמע</string>
     <string name="stalow_seek_back_10">10 שניות אחורה</string>
     <string name="stalow_seek_forward_10">10 שניות קדימה</string>
+    <string name="stalow_most_played">הכי מושמעים</string>
 </resources>
