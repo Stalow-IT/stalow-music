@@ -18,7 +18,7 @@ fun nextEpisodeSpeed(current: Float): Float {
 }
 
 /** The ±30s episode skip step (ms). */
-const val EPISODE_SKIP_MS = 30_000L
+const val EPISODE_SKIP_MS = 10_000L // Stalow: 10 s back / forward (also for music played as audio)
 
 /**
  * The ±30s skip buttons' seek target: clamped to the track start, and to the end when the duration

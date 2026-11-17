@@ -793,8 +793,11 @@ fun BottomSheetPlayer(
 
             // Episode-only controls (podcasts are long): playback speed + 30s skip back/forward.
             // Hidden for music so the normal transport is unchanged.
-            if (mediaMetadata.isEpisode) {
+            // Stalow: 10 s back / forward for everything playing as audio (video has double-tap on its sides);
+            // episodes also keep their speed control.
+            if (!isVideoMode && !isStationBroadcast) {
                 EpisodePlaybackControls(
+                    showSpeed = mediaMetadata.isEpisode,
                     playerConnection = playerConnection,
                     contentColor = TextBackgroundColor,
                     onSeekTo = { target ->
@@ -990,6 +993,7 @@ fun BottomSheetPlayer(
  */
 @Composable
 private fun EpisodePlaybackControls(
+    showSpeed: Boolean,
     playerConnection: PlayerConnection,
     contentColor: Color,
     onSeekTo: (Long) -> Unit,
@@ -1004,7 +1008,7 @@ private fun EpisodePlaybackControls(
         horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        if (showSpeed) Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .focusBorder(RoundedCornerShape(50))
@@ -1030,7 +1034,10 @@ private fun EpisodePlaybackControls(
             },
             modifier = Modifier.focusBorder(RoundedCornerShape(50)),
         ) {
-            Icon(painter = painterResource(R.drawable.fast_rewind), contentDescription = null, tint = contentColor)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painter = painterResource(R.drawable.fast_rewind), contentDescription = stringResource(R.string.stalow_seek_back_10), tint = contentColor)
+                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge)
+            }
         }
         IconButton(
             onClick = {
@@ -1038,7 +1045,10 @@ private fun EpisodePlaybackControls(
             },
             modifier = Modifier.focusBorder(RoundedCornerShape(50)),
         ) {
-            Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = null, tint = contentColor)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge)
+                Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = stringResource(R.string.stalow_seek_forward_10), tint = contentColor)
+            }
         }
     }
 }
