@@ -304,4 +304,5 @@
     <string name="stalow_bookmark_at">ב־%1$s</string>
     <string name="stalow_bookmark_removed">הסימנייה הוסרה</string>
     <string name="video">וידאו</string>
+    <string name="stalow_weak_connection_audio">החיבור איטי מדי לווידאו: מתנגן כשמע</string>
 </resources>

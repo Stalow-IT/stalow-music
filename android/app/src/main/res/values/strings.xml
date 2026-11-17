@@ -529,4 +529,5 @@
     <string name="stalow_bookmarks">Bookmarks</string>
     <string name="stalow_bookmark_at">At %1$s</string>
     <string name="stalow_bookmark_removed">Bookmark removed</string>
+    <string name="stalow_weak_connection_audio">The connection is too slow for video: playing as audio</string>
 </resources>

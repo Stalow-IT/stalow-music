@@ -264,6 +264,34 @@ fun BottomSheetPlayer(
             context.toast(R.string.video_playback_error)
         }
     }
+    LaunchedEffect(Unit) {
+        playerConnection.weakConnectionEvents.collect { context.toast(R.string.stalow_weak_connection_audio) }
+    }
+
+    // Stalow: no video while the player is shrunk to the mini bar. Nothing shows there, but the video kept
+    // streaming (stalling on a phone connection) and leaving the app opened the small video window.
+    // Shrinking switches to audio; opening the player again goes back to video.
+    val currentInPip by androidx.compose.runtime.rememberUpdatedState(inPip)
+    LaunchedEffect(Unit) {
+        var wasExpanded = state.isExpanded
+        // The item that was showing video when the player was shrunk; only that same item goes back to video.
+        var videoItemBeforeCollapse: String? = null
+        androidx.compose.runtime.snapshotFlow { state.isExpanded }.collect { expanded ->
+            val currentId = playerConnection.mediaMetadata.value?.id
+            if (wasExpanded && !expanded && !currentInPip) {
+                playerConnection.pauseAutoVideo(true)
+                if (playerConnection.isVideoMode.value) {
+                    videoItemBeforeCollapse = currentId
+                    playerConnection.setVideoMode(false)
+                }
+            } else if (!wasExpanded && expanded) {
+                playerConnection.pauseAutoVideo(false)
+                if (videoItemBeforeCollapse != null && videoItemBeforeCollapse == currentId) playerConnection.setVideoMode(true)
+                videoItemBeforeCollapse = null
+            }
+            wasExpanded = expanded
+        }
+    }
 
     // Kick the on-demand SELF-type probe (requestVideoAvailability) when the expanded player shows a new
     // item, so a cache-hit video-song still gets its Song/Video toggle.

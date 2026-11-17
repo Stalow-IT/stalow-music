@@ -126,9 +126,11 @@ class PlayerConnection(
     val currentItemIsVideo = service.videoModeController.currentItemIsVideo
     val isVideoMode = service.videoModeController.isVideoMode
     val videoErrorEvents = service.videoModeController.videoErrorEvents
+    val weakConnectionEvents = service.videoModeController.weakConnectionEvents
     fun setVideoMode(enabled: Boolean) = service.videoModeController.setVideoMode(enabled)
     /** The user's Video / Audio only choice: switches now and is remembered for the next videos and podcasts. */
     fun chooseVideo(video: Boolean) = service.videoModeController.chooseVideo(video)
+    fun pauseAutoVideo(paused: Boolean) = service.videoModeController.pauseAutoVideo(paused)
     // The quality switcher (beyond-720p): the current item's selectable ladder + active rung label.
     val videoQualities = service.videoModeController.videoQualities
     val currentVideoQuality = service.videoModeController.currentVideoQuality
@@ -154,6 +156,7 @@ class PlayerConnection(
     }
 
     fun playQueue(queue: Queue) {
+        service.videoModeController.pauseAutoVideo(false) // the user chose something: it may start as video
         // The tapped item is "preparing" until the player renders it, so its card shows a loading spinner
         // instead of a hanging play button. preparingItemId is the preload for most queues, and the
         // startIndex item for a ListQueue (episodes/one-off plays, which carry no preload).

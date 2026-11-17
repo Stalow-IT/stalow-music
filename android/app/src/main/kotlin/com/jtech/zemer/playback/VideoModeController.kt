@@ -173,6 +173,10 @@ class VideoModeController(
     // resolution). The cache has its own revision; block/cast/metadata are their own flows.
     private val recompute = MutableStateFlow(0)
 
+    private val _weakConnectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** One-shot: video kept stalling, so the item went on as audio → the UI says why. */
+    val weakConnectionEvents: SharedFlow<Unit> = _weakConnectionEvents.asSharedFlow()
+
     private val _videoErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** One-shot: a video-mode playback error reverted to audio → the UI shows a snackbar. */
     val videoErrorEvents: SharedFlow<Unit> = _videoErrorEvents.asSharedFlow()
@@ -215,8 +219,19 @@ class VideoModeController(
      * SELF or a downloaded LOCAL file) starts as video when the preference is on. Music stays audio. Availability can arrive
      * after the audio starts (the type is learned from the stream), so this runs on every recompute.
      */
+    // Set when the user shrinks the player to the mini bar (they are browsing): the next items then don't
+    // pop the player open as video. Cleared when the player opens again or the user plays something new.
+    @Volatile
+    private var autoVideoPaused = false
+
+    /** The player was shrunk (paused = true) or opened / something new was played (false). */
+    fun pauseAutoVideo(paused: Boolean) {
+        autoVideoPaused = paused
+        if (!paused) mainHandler.post { recomputeNow() }
+    }
+
     private fun maybeStartAsVideo(rendition: VideoModeLogic.Rendition?) {
-        if (!videoFirst || rendition == null || _isVideoMode.value) return
+        if (!videoFirst || rendition == null || _isVideoMode.value || autoVideoPaused) return
         // Only once playback is starting: a queue restored paused at app start must not open full screen.
         if (!player.playWhenReady) return
         if (rendition.kind != RenditionKind.SELF && rendition.kind != RenditionKind.LOCAL) return
@@ -439,7 +454,13 @@ class VideoModeController(
         val renditionId = videoRenditionId ?: return
         // AUTO already plays the cheapest single-stream pick — nothing to drop to.
         val current = _currentVideoQuality.value
-        if (current == VideoQualityLogic.AUTO) return
+        if (current == VideoQualityLogic.AUTO) {
+            // Stalow: the automatic pick is already the lightest stream, so repeated stalls mean the
+            // connection can't carry video: carry on as audio (it was stopping every few seconds) and say so.
+            exitVideoModeSameItem()
+            scope.launch { _weakConnectionEvents.emit(Unit) }
+            return
+        }
         val rungs = qualityLadders[renditionId] ?: return
         // Step down exactly ONE rung, so playback settles on the HIGHEST rung that actually plays
         // (e.g. 2160p → 1440p → 1080p → 720p, stopping the moment 720p is stable). We deliberately do
