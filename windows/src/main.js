@@ -29,7 +29,9 @@ const writeSettings = (s) => writeRaw(settingsFile(), settingsSchema.normalize(s
 
 // Listen history and search history, each in its own file (Settings > Privacy, and backups).
 const dataFile = (name) => path.join(app.getPath('userData'), `${name}.json`);
-const DATA = { history: 'history', searchHistory: 'search-history', likes: 'likes' };
+const RELEASES_URL = 'https://dzrnortzhpnoussbeedv.supabase.co/functions/v1/stalow-releases';
+let releasesCache = null;
+const DATA = { history: 'history', searchHistory: 'search-history', likes: 'likes', plays: 'plays' };
 const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(x.id) ? {
   type: 'song', id: x.id, title: String(x.title || '').slice(0, 300),
   artists: (Array.isArray(x.artists) ? x.artists : []).filter((a) => a && typeof a.name === 'string').slice(0, 10).map((a) => ({ id: typeof a.id === 'string' ? a.id : null, name: a.name.slice(0, 200) })),
@@ -39,8 +41,10 @@ const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(
   ...(typeof x.playedAt === 'number' ? { playedAt: x.playedAt } : {}),
   ...(typeof x.likedAt === 'number' ? { likedAt: x.likedAt } : {}),
   ...(x.unliked === true ? { unliked: true } : {}),
+  // Home > Most played: when the song was played (the last 50 times)
+  ...(Array.isArray(x.playTimes) ? { playTimes: x.playTimes.filter((n) => typeof n === 'number').slice(-50) } : {}),
 } : null);
-const cleanHistory = (list) => (Array.isArray(list) ? list.map(cleanSong).filter(Boolean).slice(0, 500) : []);
+const cleanHistory = (list, max = 500) => (Array.isArray(list) ? list.map(cleanSong).filter(Boolean).slice(0, max) : []);
 const cleanSearches = (list) => (Array.isArray(list) ? list.filter((q) => q && typeof q.q === 'string' && q.q.trim()).map((q) => ({ q: q.q.trim().slice(0, 200), at: typeof q.at === 'number' ? q.at : Date.now() })).slice(0, 200) : []);
 const cleanSession = (s) => {
   if (!s || !Array.isArray(s.queue)) return null;
@@ -106,6 +110,23 @@ const handlers = {
   'catalog:channelIds': async () => [...catalog.channels.keys()],
   'catalog:channels': async ({ category, text } = {}) => catalog.channelList(category, text),
   'catalog:home': async (recentArtistIds) => ({ artists: catalog.homeArtists(recentArtistIds, 18) }),
+  // Home > New releases: the approved artists' new albums and singles (the same list as the phone app)
+  'catalog:releases': async () => {
+    if (!releasesCache || Date.now() - releasesCache.at > 15 * 60000) {
+      try {
+        const res = await net.fetch(RELEASES_URL);
+        if (res.ok) {
+          const feed = await res.json();
+          const items = (Array.isArray(feed.releases) ? feed.releases : []).filter((r) => r && /^MPRE[\w-]+$/.test(r.browseId) && /^UC[\w-]+$/.test(r.artistId)).map((r) => ({
+            type: 'album', id: r.browseId, title: String(r.title || '').slice(0, 300), artists: [{ id: r.artistId, name: String(r.artistName || '') }],
+            thumbnail: /^https:\/\//.test(r.thumbnail || '') ? r.thumbnail : '', year: r.year || null,
+          }));
+          releasesCache = { at: Date.now(), items };
+        }
+      } catch (e) { /* keep the last list */ }
+    }
+    return releasesCache ? catalog.filterItems(releasesCache.items) : [];
+  },
   // the full list behind a shelf's "See all" on an artist or channel page
   'catalog:shelf': async ({ id, name, more } = {}) => {
     if (typeof id !== 'string' || !catalog.canOpen(id)) return { notApproved: true };
@@ -169,8 +190,8 @@ const handlers = {
   'data:get': async (name) => { if (!DATA[name]) throw new Error('Unknown data'); return readRaw(dataFile(DATA[name]), []); },
   'data:set': async ({ name, value } = {}) => {
     if (!DATA[name]) throw new Error('Unknown data');
-    writeRaw(dataFile(DATA[name]), name === 'searchHistory' ? cleanSearches(value) : cleanHistory(value));
-    if (sync && name !== 'searchHistory') sync.soon();
+    writeRaw(dataFile(DATA[name]), name === 'searchHistory' ? cleanSearches(value) : cleanHistory(value, name === 'plays' ? 1000 : 500));
+    if (sync && name !== 'searchHistory' && name !== 'plays') sync.soon();
   },
   // Settings > Sync (phone <-> PC)
   'sync:info': async () => sync.info(),

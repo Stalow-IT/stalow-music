@@ -272,6 +272,19 @@ function rememberPlayed(song) {
   const keep = { type: 'song', id: song.id, title: song.title, artists: song.artists || [], album: song.album || (song.albumName ? { id: '', title: song.albumName } : null), thumbnail: song.thumbnail || '', duration: song.duration || null, playedAt: Date.now() };
   listenHistory = [keep, ...listenHistory.filter((s) => s && s.id !== song.id)].slice(0, 500);
   stalow.setData('history', listenHistory).catch(() => {});
+  // Home > Most played: count each play
+  const prev = plays.find((p) => p.id === song.id);
+  const entry = { ...keep, playTimes: [...((prev && prev.playTimes) || []), keep.playedAt].slice(-50) };
+  plays = [entry, ...plays.filter((p) => p && p.id !== song.id)].slice(0, 1000);
+  stalow.setData('plays', plays).catch(() => {});
+}
+let plays = [];
+async function loadPlays() { try { plays = await stalow.getData('plays'); } catch { plays = []; } if (!Array.isArray(plays)) plays = []; }
+/** The songs played most in the last 30 days, most first. */
+function mostPlayed(limit = 50) {
+  const since = Date.now() - 30 * 86400000;
+  return plays.map((p) => ({ p, n: (p.playTimes || []).filter((x) => x >= since).length })).filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n || (b.p.playedAt || 0) - (a.p.playedAt || 0)).slice(0, limit).map((x) => x.p);
 }
 async function clearHistory() { listenHistory = []; await stalow.setData('history', []); }
 /** Artist ids from the recently played songs, most recent first. */
@@ -575,8 +588,8 @@ function songRows(songs, { onPlay } = {}) {
     el('span', { class: 'add', role: 'button', title: t('play_next'), text: t('play_next'), onclick: (e) => { e.stopPropagation(); playNext(s); } }),
     el('span', { class: 'add', role: 'button', title: t('add_to_queue'), text: '+ ' + t('queue'), onclick: (e) => { e.stopPropagation(); addToQueue(s); } })))));
 }
-function cards(items) {
-  return el('div', { class: 'grid' }, items.map((it) => el('button', {
+function cards(items, { row = false } = {}) {
+  return el('div', { class: 'grid' + (row ? ' one-line' : '') }, items.map((it) => el('button', {
     class: 'card' + (it.type === 'artist' ? ' round' : ''),
     onclick: () => open(it),
   }, img(it.thumbnail, it.title, { isVideo: it.isVideo }), el('div', { class: 't ellipsis', text: it.title }),
@@ -612,6 +625,8 @@ const views = {
     const recentIds = recentArtistIds();
     const { artists } = await stalow.home(recentIds);
     const recent = S.showRecentlyPlayed ? listenHistory.slice(0, 12) : [];
+    const releases = await stalow.releases().catch(() => []);
+    const most = mostPlayed(12);
     const played = artists.filter((a) => recentIds.includes(a.id)).length;
     const offer = continueOffer();
     const cur = offer ? offer.queue[Math.min(offer.index | 0, offer.queue.length - 1)] : null;
@@ -622,12 +637,37 @@ const views = {
         el('div', { class: 'grow' }, el('div', { class: 'top-pic' }, img(cur.thumbnail, cur.title)),
           el('div', {}, el('div', { class: 'overline', text: t('continue_from', offer.device || t('your_phone')) }), el('div', { class: 'it', text: cur.title }), el('div', { class: 'id', text: artistNames(cur) }))),
         el('span', { class: 'btn' }, icon('play'), t('continue')))) : '',
-      recent.length ? sectionHead(t('keep_listening')) : '',
-      recent.length ? cards(recent) : '',
+      recent.length ? sectionHead(t('keep_listening'), () => go('recent')) : '',
+      recent.length ? cards(recent, { row: true }) : '',
+      releases.length ? sectionHead(t('new_releases'), () => go('releases')) : '',
+      releases.length ? cards(releases.slice(0, 12), { row: true }) : '',
+      most.length ? sectionHead(t('most_played'), () => go('mostPlayed')) : '',
+      most.length ? cards(most, { row: true }) : '',
       S.showGenres ? sectionHead(t('genres')) : '',
       S.showGenres ? el('div', { class: 'chips' }, HOME_GENRES.map((g) => el('button', { class: 'chip', text: g, onclick: () => go('search', g) }))) : '',
       sectionHead(played ? t('your_artists') : t('stalow_artists_for_you'), () => go('artists')), cards(artists),
       el('div', { class: 'actions' }, el('button', { class: 'btn secondary', text: t('show_other_artists'), onclick: () => views.home() })));
+  },
+  // See all for the Home rows
+  async recent() {
+    const list = listenHistory.slice(0, 200);
+    view.replaceChildren(el('h1', { text: t('keep_listening') }),
+      list.length ? el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle'))) : '',
+      list.length ? songRows(list) : el('div', { class: 'status', text: t('nothing_playing') }));
+  },
+  async releases() {
+    view.replaceChildren(el('h1', { text: t('new_releases') }), el('div', { class: 'status', text: t('loading') }));
+    const list = await stalow.releases().catch(() => []);
+    view.replaceChildren(el('h1', { text: t('new_releases') }), el('p', { class: 'muted', text: t('new_releases_hint') }),
+      list.length ? cards(list) : el('div', { class: 'status', text: t('new_releases_none') }));
+  },
+  async mostPlayed() {
+    const list = mostPlayed(50);
+    view.replaceChildren(el('h1', { text: t('most_played') }), el('p', { class: 'muted', text: t('most_played_hint') }),
+      list.length ? el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle'))) : '',
+      list.length ? songRows(list) : el('div', { class: 'status', text: t('most_played_none') }));
   },
   async search(q = '') {
     const box = el('input', { class: 'searchbox', type: 'search', placeholder: t('stalow_search_hint'), value: q });

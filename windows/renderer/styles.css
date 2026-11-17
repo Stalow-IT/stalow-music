@@ -241,3 +241,6 @@ svg { width: 20px; height: 20px; flex: none; }
 .sync-code { font-size: 20px; letter-spacing: 0.06em; padding: 10px 14px; border: 1px dashed var(--border); border-radius: 12px; background: var(--bg); user-select: all; }
 .continue { margin: 6px 0 10px; max-width: 760px; }
 .continue .overline { color: var(--blue); }
+
+/* Home: one row of cards that scrolls sideways (See all opens the full list) */
+.grid.one-line { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 150px; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; scrollbar-width: thin; }
