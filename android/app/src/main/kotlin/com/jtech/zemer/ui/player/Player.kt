@@ -296,11 +296,11 @@ fun BottomSheetPlayer(
                 playerConnection.pauseAutoVideo(true)
                 if (playerConnection.isVideoMode.value) {
                     videoItemBeforeCollapse = currentId
-                    playerConnection.setVideoMode(false)
+                    playerConnection.setVideoMode(false, "player shrunk to the mini bar")
                 }
             } else if (!wasExpanded && expanded) {
                 playerConnection.pauseAutoVideo(false)
-                if (videoItemBeforeCollapse != null && videoItemBeforeCollapse == currentId) playerConnection.setVideoMode(true)
+                if (videoItemBeforeCollapse != null && videoItemBeforeCollapse == currentId) playerConnection.setVideoMode(true, "player opened again")
                 videoItemBeforeCollapse = null
             }
             wasExpanded = expanded
@@ -447,7 +447,7 @@ fun BottomSheetPlayer(
     // does not auto-restore it.
     LaunchedEffect(lyricsSheetState.isExpanded, isVideoMode) {
         if (PlayerVideoUiLogic.shouldRevertVideoForLyrics(lyricsSheetState.isExpanded, isVideoMode)) {
-            playerConnection.setVideoMode(false)
+            playerConnection.setVideoMode(false, "lyrics opened")
         }
     }
 

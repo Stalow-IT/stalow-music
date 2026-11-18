@@ -127,7 +127,7 @@ class PlayerConnection(
     val isVideoMode = service.videoModeController.isVideoMode
     val videoErrorEvents = service.videoModeController.videoErrorEvents
     val weakConnectionEvents = service.videoModeController.weakConnectionEvents
-    fun setVideoMode(enabled: Boolean) = service.videoModeController.setVideoMode(enabled)
+    fun setVideoMode(enabled: Boolean, reason: String = "") = service.videoModeController.setVideoMode(enabled, reason)
     /** The user's Video / Audio only choice: switches now and is remembered for the next videos and podcasts. */
     fun chooseVideo(video: Boolean) = service.videoModeController.chooseVideo(video)
     fun pauseAutoVideo(paused: Boolean) = service.videoModeController.pauseAutoVideo(paused)

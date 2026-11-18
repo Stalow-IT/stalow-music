@@ -465,7 +465,7 @@ class MainActivity : ComponentActivity() {
         // Backgrounding reverts video mode to audio: an invisible muxed stream would keep downloading
         // and decoding (the same waste the lyrics-sheet revert exists for). Audio continues seamlessly;
         // orientation changes never pass here (configChanges handles them, no Activity restart).
-        playerConnection?.setVideoMode(false)
+        playerConnection?.setVideoMode(false, "app went to the background")
         try {
             unbindService(serviceConnection)
         } catch (e: IllegalArgumentException) {

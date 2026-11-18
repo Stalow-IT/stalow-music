@@ -242,7 +242,7 @@ class VideoModeController(
         if (autoStartedId == id) return
         autoStartedId = id
         mainHandler.post {
-            if (service.currentMediaMetadata.value?.id == id && !_isVideoMode.value) setVideoMode(true)
+            if (service.currentMediaMetadata.value?.id == id && !_isVideoMode.value) setVideoMode(true, "auto start (podcast / channel)")
         }
     }
 
@@ -250,7 +250,7 @@ class VideoModeController(
     fun chooseVideo(video: Boolean) {
         videoFirst = video
         scope.launch { service.dataStore.edit { it[VideoFirstKey] = video } }
-        setVideoMode(video)
+        setVideoMode(video, if (video) "you (Video)" else "you (Audio only)")
     }
 
     /**
@@ -539,7 +539,10 @@ class VideoModeController(
             // process death — after a queue restore the registry is empty, so without it the toggle
             // silently disappeared for a flagged song until the on-expand probe round-tripped. A
             // LEARNED musicVideoType (including ATV) still overrides both — see availability().
-            corpusVideoSong = VideoSongIds.contains(id) || meta.isVideo,
+            // Stalow: podcasts and the approved channels' uploads are videos from the start, so they can start
+            // as video at once instead of playing as audio until YouTube's answer confirms it (audio -> video jump).
+            corpusVideoSong = VideoSongIds.contains(id) || meta.isVideo ||
+                com.jtech.zemer.utils.StalowChannels.startsAsVideo(meta.isEpisode, meta.artists.map { it.id }),
             counterpartVideoId = avail?.counterpartVideoId,
             isBlockedRendition = { rid -> BlockedIdsCache.isBlocked(rid, ContentFilterState.current) },
         )
@@ -557,8 +560,8 @@ class VideoModeController(
     // ---- UI-facing API (via PlayerConnection) ------------------------------
 
     /** Enter/leave video mode. No-op when unavailable (blocked/casting/no rendition). */
-    fun setVideoMode(enabled: Boolean) {
-        PlaybackReport.add("video ${if (enabled) "on" else "off"} requested (was ${_isVideoMode.value})")
+    fun setVideoMode(enabled: Boolean, reason: String = "") {
+        PlaybackReport.add("video ${if (enabled) "on" else "off"} requested${if (reason.isNotEmpty()) " by $reason" else ""} (was ${_isVideoMode.value})")
         if (enabled) {
             if (_isVideoMode.value) return
             val rendition = computeAvailability() ?: return
