@@ -839,6 +839,21 @@ class MusicService :
             }
         }
 
+        // Stalow: playback comes before downloads (PlaybackBandwidth) - checked every second.
+        scope.launch {
+            while (isActive) {
+                delay(1.seconds)
+                val id = player.currentMediaItem?.mediaId
+                PlaybackBandwidth.needed = PlaybackBandwidth.shouldYield(
+                    playWhenReady = player.playWhenReady,
+                    hasItem = id != null,
+                    localFile = id != null && playbackSourceIsLocalFile(id),
+                    buffering = player.playbackState == Player.STATE_BUFFERING,
+                    bufferedAheadMs = player.totalBufferedDuration,
+                )
+            }
+        }
+
         // Sync with your PC: what is playing, every 10 s while playing (also when the persistent queue is off)
         scope.launch {
             while (isActive) {
