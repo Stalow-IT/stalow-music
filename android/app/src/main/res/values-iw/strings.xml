@@ -314,4 +314,6 @@
     <string name="stalow_playback_report_share">שיתוף דוח ההשמעה</string>
     <string name="stalow_playback_report_lines">%1$d שורות נרשמו</string>
     <string name="stalow_playback_report_clear">ניקוי הדוח</string>
+    <string name="stalow_bookmarks_empty">עדיין אין סימניות. בזמן שפודקאסט, שיעור או סרטון ארוך מתנגן, לחצו על סימנייה בנגן כדי לשמור את המקום.</string>
+    <string name="stalow_bookmark_remove">הסרת הסימנייה</string>
 </resources>

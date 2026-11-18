@@ -173,8 +173,6 @@ fun HomeScreen(
     val playerConnection = LocalPlayerConnection.current ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
-    var stalowBookmarksJson by rememberPreference(com.jtech.zemer.playback.BookmarksKey, "")
-    val stalowBookmarks = remember(stalowBookmarksJson) { com.jtech.zemer.playback.Bookmarks.decode(stalowBookmarksJson) }
 
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -623,36 +621,7 @@ fun HomeScreen(
                     }
                 }
 
-                // Stalow: the places saved with the player's Bookmark button (tap = carry on, long press = remove).
-                if (stalowBookmarks.isNotEmpty()) {
-                    item(key = "stalow_bookmarks_title", contentType = "header") {
-                        NavigationTitle(
-                            title = stringResource(R.string.stalow_bookmarks),
-                            modifier = Modifier.animateItem(),
-                        )
-                    }
-                    item(key = "stalow_bookmarks_row", contentType = "row") {
-                        HomeBookmarksRow(
-                            bookmarks = stalowBookmarks,
-                            onOpen = { bookmark ->
-                                playerConnection.playQueue(
-                                    ListQueue(
-                                        title = bookmark.title,
-                                        items = listOf(bookmark.toMediaMetadata().toMediaItem()),
-                                        position = bookmark.positionMs,
-                                        playSource = if (bookmark.isEpisode) PlaySource.podcast(null) else PlaySource.OTHER,
-                                    ),
-                                )
-                            },
-                            onRemove = { bookmark ->
-                                stalowBookmarksJson = com.jtech.zemer.playback.Bookmarks.encode(
-                                    com.jtech.zemer.playback.Bookmarks.remove(stalowBookmarks, bookmark.id),
-                                )
-                                context.toast(R.string.stalow_bookmark_removed)
-                            },
-                        )
-                    }
-                }
+                // Stalow: Bookmarks live in the side menu (BookmarksScreen), not on Home.
 
                 // Stalow: shortcuts to the approved Podcasts, Shiurim and Videos channels.
                 item(key = "stalow_channel_shortcuts", contentType = "header") {

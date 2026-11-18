@@ -539,4 +539,6 @@
     <string name="stalow_playback_report_share">Share playback report</string>
     <string name="stalow_playback_report_lines">%1$d lines recorded</string>
     <string name="stalow_playback_report_clear">Clear the report</string>
+    <string name="stalow_bookmarks_empty">No bookmarks yet. While a podcast, shiur or long video plays, press Bookmark in the player to save your place.</string>
+    <string name="stalow_bookmark_remove">Remove bookmark</string>
 </resources>

@@ -38,6 +38,20 @@ object PlaybackReport {
     @Synchronized
     fun clear() = lines.clear()
 
+    const val CRASH_FILE = "stalow_last_crash.txt"
+
+    /** Saves an app crash (with the events just before it) so the next report can include it. */
+    fun installCrashCapture(file: java.io.File) {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                val trace = java.io.StringWriter().also { error.printStackTrace(java.io.PrintWriter(it)) }.toString()
+                file.writeText(url.replace(text("CRASH at ${Date()} in thread ${thread.name}") + "\n\n" + trace.take(12_000), "<link>"))
+            }
+            previous?.uncaughtException(thread, error)
+        }
+    }
+
     val size: Int @Synchronized get() = lines.size
 
     private fun stateName(s: Int) = when (s) {

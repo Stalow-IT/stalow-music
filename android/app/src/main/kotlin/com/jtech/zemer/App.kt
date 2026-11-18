@@ -94,6 +94,8 @@ class App : Application(), SingletonImageLoader.Factory {
         // breadcrumb, ERROR throwables become non-fatals. Reports carry the commit + CI run number, since nightly
         // and stable builds share one versionCode/versionName.
         CrashReporter.install(this)
+        // Stalow: keep the last crash on the phone for Settings > Playback report (Zemer's crash server is not used)
+        com.jtech.zemer.playback.PlaybackReport.installCrashCapture(java.io.File(filesDir, com.jtech.zemer.playback.PlaybackReport.CRASH_FILE))
         Timber.plant(
             CrashReportingTree(
                 logBreadcrumb = CrashReporter::breadcrumb,

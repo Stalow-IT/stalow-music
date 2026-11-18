@@ -479,6 +479,9 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/privacy") {
         PrivacySettings(navController, scrollBehavior)
     }
+    composable("bookmarks") {
+        BookmarksScreen(navController, scrollBehavior)
+    }
     composable("settings/playback_report") {
         com.jtech.zemer.ui.screens.settings.PlaybackReportSettings(navController, scrollBehavior)
     }

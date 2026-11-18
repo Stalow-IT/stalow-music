@@ -149,6 +149,7 @@ import com.jtech.zemer.utils.makeTimeString
 import com.jtech.zemer.utils.rememberEnumPreference
 import com.jtech.zemer.utils.rememberPreference
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -242,6 +243,12 @@ fun BottomSheetPlayer(
     // exactly what makes "track end in fullscreen → advance as audio" fall out for free.
     LaunchedEffect(isVideoMode, state.isExpanded) {
         if (PlayerVideoUiLogic.shouldExitFullscreen(isFullscreen, isVideoMode, state.isExpanded)) {
+            // Stalow: video ending exits at once; a sheet "collapse" must last (the system shade's
+            // inset change reads as not-expanded for a moment, and that dropped full screen)
+            if (isVideoMode) {
+                kotlinx.coroutines.delay(600)
+                if (!PlayerVideoUiLogic.shouldExitFullscreen(isFullscreen, playerConnection.isVideoMode.value, state.isExpanded)) return@LaunchedEffect
+            }
             isFullscreen = false
         }
     }
@@ -276,7 +283,14 @@ fun BottomSheetPlayer(
         var wasExpanded = state.isExpanded
         // The item that was showing video when the player was shrunk; only that same item goes back to video.
         var videoItemBeforeCollapse: String? = null
-        androidx.compose.runtime.snapshotFlow { state.isExpanded }.collect { expanded ->
+        // collectLatest + a short wait: only a real shrink counts. Pulling the system shade over a full-screen
+        // video changes the screen's insets for a moment and the sheet briefly reads as not expanded, which
+        // switched to audio for a second and back. A shrink must reach the collapsed mini bar and stay there.
+        androidx.compose.runtime.snapshotFlow { state.isExpanded }.collectLatest { expanded ->
+            if (wasExpanded && !expanded) {
+                kotlinx.coroutines.delay(600)
+                if (state.isExpanded || !state.isCollapsed) return@collectLatest // a blip, not a shrink
+            }
             val currentId = playerConnection.mediaMetadata.value?.id
             if (wasExpanded && !expanded && !currentInPip) {
                 playerConnection.pauseAutoVideo(true)

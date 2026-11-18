@@ -593,6 +593,7 @@ class MusicService :
                     addListener(sleepTimer)
                     addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
                     addAnalyticsListener(PlaybackReport.Listener()) // Settings > Playback report
+                    addAnalyticsListener(slowStreamGuard)
                     setOffloadEnabled(dataStore.get(AudioOffload, false))
                 }
 
@@ -2102,6 +2103,61 @@ class MusicService :
         }
     }
 
+    // Stalow: which client served each item's audio stream (for the slow-stream recovery below).
+    private val streamClientById = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val slowRecoveries = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /**
+     * Stalow: a stream that crawls instead of failing. A playback report showed the audio arriving at
+     * ~7 kbit/s (16 KB, then a read timeout, again and again) for ten minutes - ExoPlayer just keeps
+     * retrying the same link, so the sound played 2 s, stopped 15 s, and so on. After the second load
+     * timeout on an item within a minute, that client is skipped for it and the stream is resolved again
+     * (the next client) from the same position. At most 3 times per item.
+     */
+    private val slowStreamGuard = object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+        private val timeouts = ArrayDeque<Long>()
+        private var forId: String? = null
+        override fun onLoadError(
+            eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+            loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+            mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            error: java.io.IOException,
+            wasCanceled: Boolean,
+        ) {
+            if (wasCanceled || videoModeController.isVideoMode.value) return
+            var c: Throwable? = error
+            var timedOut = false
+            while (c != null) { if (c is java.net.SocketTimeoutException) { timedOut = true; break }; c = c.cause }
+            if (!timedOut) return
+            val id = player.currentMediaItem?.mediaId ?: return
+            if (playbackSourceIsLocalFile(id)) return
+            if (id != forId) { forId = id; timeouts.clear() }
+            val now = android.os.SystemClock.elapsedRealtime()
+            timeouts.addLast(now)
+            while (timeouts.isNotEmpty() && now - timeouts.first() > 60_000) timeouts.removeFirst()
+            if (timeouts.size >= 2) {
+                timeouts.clear()
+                recoverSlowStream(id)
+            }
+        }
+    }
+
+    private fun recoverSlowStream(mediaId: String) {
+        val tries = slowRecoveries.merge(mediaId, 1, Int::plus) ?: 1
+        if (tries > 3) return
+        val client = streamClientById[mediaId]
+        PlaybackReport.add("stream for $mediaId crawls (${client ?: "unknown client"}): trying another source (try $tries of 3)")
+        if (client != null) YTPlayerUtils.markSlowClient(mediaId, client)
+        if (client == null || client == "WEB_REMIX") YTPlayerUtils.markWebRemixFailed(mediaId)
+        DownloadUtil.invalidateUrl(mediaId)
+        val position = player.currentPosition
+        // The next source may be another format: drop this item's partly cached bytes so the two never mix.
+        player.stop()
+        runCatching { playerCache.removeResource(mediaId) }
+        player.seekTo(player.currentMediaItemIndex, position)
+        player.prepare()
+    }
+
     /**
      * Handles expired URL errors by clearing the cached URL and immediately retrying.
      */
@@ -2404,7 +2460,7 @@ class MusicService :
                 // Settings > Playback report: which stream was found, and how long finding it took
                 PlaybackReport.add(
                     r.fold(
-                        { d -> "stream for $mediaId: itag ${d.format.itag} ${d.format.mimeType.substringBefore(';')} ${d.format.bitrate / 1000} kbit/s, found in ${System.currentTimeMillis() - resolveStartedAt} ms" },
+                        { d -> streamClientById[mediaId] = d.streamClient; "stream for $mediaId: ${d.streamClient} itag ${d.format.itag} ${d.format.mimeType.substringBefore(';')} ${d.format.bitrate / 1000} kbit/s, found in ${System.currentTimeMillis() - resolveStartedAt} ms" },
                         { e -> "STREAM NOT FOUND for $mediaId after ${System.currentTimeMillis() - resolveStartedAt} ms: ${e.javaClass.simpleName}: ${e.message}" },
                     )
                 )

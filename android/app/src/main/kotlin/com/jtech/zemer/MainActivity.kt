@@ -1497,6 +1497,16 @@ class MainActivity : ComponentActivity() {
                                     },
                                 )
                                 DrawerEntry(
+                                    label = R.string.stalow_bookmarks,
+                                    icon = R.drawable.bookmark,
+                                    selected = navBackStackEntry?.destination?.route == "bookmarks",
+                                    canFocus = drawerState.isOpen,
+                                    onClick = {
+                                        coroutineScope.launch { drawerState.close() }
+                                        navController.navigate("bookmarks") { launchSingleTop = true }
+                                    },
+                                )
+                                DrawerEntry(
                                     label = R.string.stats,
                                     icon = R.drawable.stats,
                                     selected = navBackStackEntry?.destination?.route == "stats",

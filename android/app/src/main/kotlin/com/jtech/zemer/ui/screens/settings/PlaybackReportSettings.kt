@@ -70,7 +70,9 @@ fun PlaybackReportSettings(
                         val send = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_SUBJECT, "Stalow Music playback report")
-                            putExtra(Intent.EXTRA_TEXT, PlaybackReport.text(header))
+                            val crash = java.io.File(context.filesDir, PlaybackReport.CRASH_FILE)
+                            val crashText = if (crash.exists()) "\n\n===== Last crash =====\n" + runCatching { crash.readText() }.getOrDefault("") else ""
+                            putExtra(Intent.EXTRA_TEXT, PlaybackReport.text(header) + crashText)
                         }
                         context.startActivity(Intent.createChooser(send, null))
                     },
@@ -79,7 +81,7 @@ fun PlaybackReportSettings(
                 PreferenceEntry(
                     title = { Text(stringResource(R.string.stalow_playback_report_clear)) },
                     icon = { Icon(painterResource(R.drawable.history), null) },
-                    onClick = { PlaybackReport.clear(); lines = 0 },
+                    onClick = { PlaybackReport.clear(); java.io.File(context.filesDir, PlaybackReport.CRASH_FILE).delete(); lines = 0 },
                 )
             }),
         )
