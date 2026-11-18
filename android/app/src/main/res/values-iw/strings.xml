@@ -308,4 +308,10 @@
     <string name="stalow_seek_back_10">10 שניות אחורה</string>
     <string name="stalow_seek_forward_10">10 שניות קדימה</string>
     <string name="stalow_most_played">הכי מושמעים</string>
+    <string name="stalow_playback_report">דוח השמעה</string>
+    <string name="stalow_playback_report_desc">כשהשמע נקטע, שתפו מה קרה בהשמעה</string>
+    <string name="stalow_playback_report_explain">אם שיר, פודקאסט או סרטון נעצר, נקטע לסירוגין או מתחלף לאט, שתפו את הדוח הזה מיד אחרי שזה קורה. הוא מפרט מה ההשמעה עשתה בדקות האחרונות (טעינה, עצירות, שגיאות, מהירות חיבור, הורדות), בלי קישורים או פרטים אישיים. שום דבר לא נשלח אם לא תשתפו.</string>
+    <string name="stalow_playback_report_share">שיתוף דוח ההשמעה</string>
+    <string name="stalow_playback_report_lines">%1$d שורות נרשמו</string>
+    <string name="stalow_playback_report_clear">ניקוי הדוח</string>
 </resources>

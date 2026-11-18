@@ -533,4 +533,10 @@
     <string name="stalow_seek_back_10">10 seconds back</string>
     <string name="stalow_seek_forward_10">10 seconds forward</string>
     <string name="stalow_most_played">Most played</string>
+    <string name="stalow_playback_report">Playback report</string>
+    <string name="stalow_playback_report_desc">When the sound cuts out, share what playback did</string>
+    <string name="stalow_playback_report_explain">If a song, podcast or video stops, cuts in and out or takes long to switch, share this report right after it happens. It lists what playback did in the last minutes (loading, stalls, errors, connection speed, downloads), without any links or personal details. Nothing is sent unless you share it.</string>
+    <string name="stalow_playback_report_share">Share playback report</string>
+    <string name="stalow_playback_report_lines">%1$d lines recorded</string>
+    <string name="stalow_playback_report_clear">Clear the report</string>
 </resources>

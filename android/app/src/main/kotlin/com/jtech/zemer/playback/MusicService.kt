@@ -592,6 +592,7 @@ class MusicService :
                     sleepTimer = SleepTimer(scope, this@MusicService)
                     addListener(sleepTimer)
                     addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
+                    addAnalyticsListener(PlaybackReport.Listener()) // Settings > Playback report
                     setOffloadEnabled(dataStore.get(AudioOffload, false))
                 }
 
@@ -844,6 +845,7 @@ class MusicService :
             while (isActive) {
                 delay(1.seconds)
                 val id = player.currentMediaItem?.mediaId
+                val wasNeeded = PlaybackBandwidth.needed
                 PlaybackBandwidth.needed = PlaybackBandwidth.shouldYield(
                     playWhenReady = player.playWhenReady,
                     hasItem = id != null,
@@ -851,6 +853,17 @@ class MusicService :
                     buffering = player.playbackState == Player.STATE_BUFFERING,
                     bufferedAheadMs = player.totalBufferedDuration,
                 )
+                if (wasNeeded != PlaybackBandwidth.needed) PlaybackReport.add("downloads ${if (PlaybackBandwidth.needed) "slowed (playback short of buffer)" else "at full speed"}")
+                // Every 10 s while playing: a snapshot of the situation.
+                if (player.playWhenReady && (System.currentTimeMillis() / 1000) % 10 == 0L) {
+                    val active = runCatching { downloadUtil.getAllMediaStoreDownloads().value.values.count { it.status == MediaStoreDownloadManager.DownloadState.Status.DOWNLOADING } }.getOrDefault(0)
+                    PlaybackReport.add(
+                        "snapshot: ${if (player.isPlaying) "playing" else "not playing"} at ${player.currentPosition / 1000}s/${player.duration.takeIf { it > 0 }?.div(1000) ?: "?"}s, " +
+                            "buffered ${player.totalBufferedDuration / 1000}s, downloads running $active, " +
+                            "video ${videoModeController.isVideoMode.value}, local file ${id != null && playbackSourceIsLocalFile(id)}, " +
+                            "mode ${if (isSabrPlaybackMode()) "SABR" else if (isRelayPlaybackMode()) "relay" else "direct"}"
+                    )
+                }
             }
         }
 
@@ -2380,11 +2393,20 @@ class MusicService :
             val currentAuthCookie = YouTube.cookie
             val isLoggedIn = currentAuthCookie.cookieHasSession()
 
+            val resolveStartedAt = System.currentTimeMillis()
             val playbackData = runBlocking(Dispatchers.IO) {
                 YTPlayerUtils.playerResponseForPlayback(
                     mediaId,
                     audioQuality = audioQuality,
                     connectivityManager = connectivityManager,
+                )
+            }.also { r ->
+                // Settings > Playback report: which stream was found, and how long finding it took
+                PlaybackReport.add(
+                    r.fold(
+                        { d -> "stream for $mediaId: itag ${d.format.itag} ${d.format.mimeType.substringBefore(';')} ${d.format.bitrate / 1000} kbit/s, found in ${System.currentTimeMillis() - resolveStartedAt} ms" },
+                        { e -> "STREAM NOT FOUND for $mediaId after ${System.currentTimeMillis() - resolveStartedAt} ms: ${e.javaClass.simpleName}: ${e.message}" },
+                    )
                 )
             }.getOrElse { throwable ->
                 when (throwable) {

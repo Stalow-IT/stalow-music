@@ -158,6 +158,14 @@ fun SettingsScreen(
             route = "settings/updater"
         ),
         SettingItem(
+            id = "playback_report",
+            title = stringResource(R.string.stalow_playback_report),
+            description = stringResource(R.string.stalow_playback_report_desc),
+            icon = R.drawable.history,
+            section = stringResource(R.string.settings_section_system),
+            route = "settings/playback_report"
+        ),
+        SettingItem(
             id = "about",
             title = stringResource(R.string.about),
             description = stringResource(R.string.settings_desc_about),

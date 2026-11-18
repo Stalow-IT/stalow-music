@@ -1026,29 +1026,37 @@ private fun EpisodePlaybackControls(
             Spacer(Modifier.width(6.dp))
             Text(text = episodeSpeedLabel(speed), color = contentColor, style = MaterialTheme.typography.labelLarge)
         }
-        IconButton(
-            onClick = {
-                // Cast-aware clocks (currentPositionMs/DurationMs): the LOCAL player's clock is
+        // A pill sized to its content (an IconButton's fixed 48dp squeezed "10" onto two lines).
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .focusBorder(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(50))
+                .clickable {
+                    // Cast-aware clocks (currentPositionMs/DurationMs): the LOCAL player's clock is
                 // frozen while casting, so reading it would compute the skip from a stale position.
                 onSeekTo(episodeSkipTarget(playerConnection.currentPositionMs(), playerConnection.currentDurationMs(), forward = false))
-            },
-            modifier = Modifier.focusBorder(RoundedCornerShape(50)),
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painter = painterResource(R.drawable.fast_rewind), contentDescription = stringResource(R.string.stalow_seek_back_10), tint = contentColor)
-                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge)
-            }
+                Icon(painter = painterResource(R.drawable.fast_rewind), contentDescription = stringResource(R.string.stalow_seek_back_10), tint = contentColor, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
         }
-        IconButton(
-            onClick = {
-                onSeekTo(episodeSkipTarget(playerConnection.currentPositionMs(), playerConnection.currentDurationMs(), forward = true))
-            },
-            modifier = Modifier.focusBorder(RoundedCornerShape(50)),
+        // A pill sized to its content (an IconButton's fixed 48dp squeezed "10" onto two lines).
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .focusBorder(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(50))
+                .clickable {
+                    onSeekTo(episodeSkipTarget(playerConnection.currentPositionMs(), playerConnection.currentDurationMs(), forward = true))
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge)
-                Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = stringResource(R.string.stalow_seek_forward_10), tint = contentColor)
-            }
+                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                Spacer(Modifier.width(4.dp))
+                Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = stringResource(R.string.stalow_seek_forward_10), tint = contentColor, modifier = Modifier.size(22.dp))
         }
     }
 }

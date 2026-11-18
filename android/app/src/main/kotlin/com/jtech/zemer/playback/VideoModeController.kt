@@ -457,6 +457,7 @@ class VideoModeController(
         if (current == VideoQualityLogic.AUTO) {
             // Stalow: the automatic pick is already the lightest stream, so repeated stalls mean the
             // connection can't carry video: carry on as audio (it was stopping every few seconds) and say so.
+            PlaybackReport.add("video kept stalling at automatic quality: switching to audio")
             exitVideoModeSameItem()
             scope.launch { _weakConnectionEvents.emit(Unit) }
             return
@@ -557,6 +558,7 @@ class VideoModeController(
 
     /** Enter/leave video mode. No-op when unavailable (blocked/casting/no rendition). */
     fun setVideoMode(enabled: Boolean) {
+        PlaybackReport.add("video ${if (enabled) "on" else "off"} requested (was ${_isVideoMode.value})")
         if (enabled) {
             if (_isVideoMode.value) return
             val rendition = computeAvailability() ?: return
@@ -704,6 +706,7 @@ class VideoModeController(
             // and the rebuffer guard handles that.
         }
         reportException(error, "Video mode playback error")
+        PlaybackReport.add("video playback error, back to audio: ${error.errorCodeName}")
         exitVideoModeSameItem()
         scope.launch { _videoErrorEvents.emit(Unit) }
         return !wasLocal
