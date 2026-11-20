@@ -831,6 +831,18 @@ class SyncUtils @Inject constructor(
         }
     }
 
+    /**
+     * Stalow: the admins changed the artist / channel list (Settings > Channels & artists): re-import both lists,
+     * after any sync already running, so the change shows everywhere right away.
+     */
+    suspend fun resyncCatalog() {
+        withContext(Dispatchers.IO) {
+            while (isSyncingWhitelist.value || isSyncingPodcastWhitelist.value) kotlinx.coroutines.delay(200)
+            syncArtistWhitelist()
+            syncPodcastWhitelist()
+        }
+    }
+
     suspend fun syncArtistWhitelist(forceSync: Boolean = false) {
         withContext(Dispatchers.IO) {
             if (isSyncingWhitelist.value) return@withContext

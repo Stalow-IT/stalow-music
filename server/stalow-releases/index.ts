@@ -107,11 +107,11 @@ async function feed() {
   const since = new Date(Date.now() - NEW_DAYS * 86400000).toISOString();
   const thisYear = new Date().getUTCFullYear();
   const cols = "browse_id,artist_id,artist_name,title,playlist_id,thumbnail,year,first_seen";
-  const fresh = await db.from("stalow_releases").select(cols).eq("baseline", false).gte("first_seen", since).order("first_seen", { ascending: false }).limit(FEED_MAX);
+  const fresh = await db.from("stalow_releases").select(cols).eq("baseline", false).eq("hidden", false).gte("first_seen", since).order("first_seen", { ascending: false }).limit(FEED_MAX);
   let rows = fresh.data || [];
   if (rows.length < 30) {
     // while the first round builds up: this year's releases the artists already had
-    const base = await db.from("stalow_releases").select(cols).eq("baseline", true).gte("year", thisYear).order("first_seen", { ascending: false }).limit(FEED_MAX - rows.length);
+    const base = await db.from("stalow_releases").select(cols).eq("baseline", true).eq("hidden", false).gte("year", thisYear).order("first_seen", { ascending: false }).limit(FEED_MAX - rows.length);
     rows = rows.concat(base.data || []);
   }
   const releases = rows.map((r: any) => ({

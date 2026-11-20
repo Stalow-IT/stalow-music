@@ -10,7 +10,8 @@ create table public.stalow_releases (
   year        int,
   kind        text not null default 'album' check (kind in ('album', 'single')),
   baseline    boolean not null default false, -- found on an artist's first scan: not "new", just already there
-  first_seen  timestamptz not null default now()
+  first_seen  timestamptz not null default now(),
+  hidden      boolean not null default false -- taken off the feed by hand (migration stalow_releases_hidden); later scans keep it
 );
 create index stalow_releases_new on public.stalow_releases (baseline, first_seen desc);
 

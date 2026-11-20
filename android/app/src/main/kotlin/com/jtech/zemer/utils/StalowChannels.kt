@@ -61,21 +61,52 @@ object StalowChannels {
         }
     }
 
-    private val idsByCategory: Map<Category, Set<String>> by lazy {
-        Category.entries.associateWith { c -> builtIn.of(c).map { it.id }.toSet() }
+    private fun categoryName(c: Category) = when (c) {
+        Category.PODCASTS -> CatalogOverrides.PODCASTS
+        Category.SHIURIM -> CatalogOverrides.SHIURIM
+        Category.VIDEOS -> CatalogOverrides.VIDEOS
     }
 
-    /** The list's version: raising it makes existing installs re-import the channels on next launch. */
-    val version: Long get() = builtIn.version
+    /** The built-in list with the admins' changes ([CatalogOverrides]) applied, rebuilt when they change. */
+    internal fun effective(base: BuiltInChannels, overrides: Map<String, CatalogOverrides.Entry>): BuiltInChannels {
+        if (overrides.isEmpty()) return base
+        fun listFor(c: Category): List<ContentPodcastDoc> {
+            val name = categoryName(c)
+            val kept = base.of(c).filter { it.id !in overrides }
+            val existing = base.all().associateBy { it.id }
+            val added = overrides.values.filter { it.category == name && !it.removed }.map { e ->
+                existing[e.id]?.copy(name = e.name.ifBlank { existing[e.id]?.name }, thumbnailUrl = e.thumbnail.ifBlank { existing[e.id]?.thumbnailUrl })
+                    ?: ContentPodcastDoc(id = e.id, name = e.name.ifBlank { e.id }, thumbnailUrl = e.thumbnail.ifBlank { null })
+            }
+            return kept + added
+        }
+        return BuiltInChannels(base.version, listFor(Category.PODCASTS), listFor(Category.SHIURIM), listFor(Category.VIDEOS))
+    }
+
+    @Volatile
+    private var cache: Pair<Map<String, CatalogOverrides.Entry>, BuiltInChannels>? = null
+
+    private val current: BuiltInChannels
+        get() {
+            val o = CatalogOverrides.entries
+            cache?.let { if (it.first === o) return it.second }
+            return effective(builtIn, o).also { cache = o to it }
+        }
+
+    /** The list's version: raising it (or an admin change) makes existing installs re-import the channels. */
+    val version: Long get() = builtIn.version * 1_000_000 + CatalogOverrides.version
 
     /** Every approved channel, each once. */
-    fun all(): List<ContentPodcastDoc> = builtIn.all()
+    fun all(): List<ContentPodcastDoc> = current.all()
+
+    /** The built-in channels, before the admins' changes (Settings > Channels & artists). */
+    fun builtInByCategory(): Map<Category, List<ContentPodcastDoc>> = Category.entries.associateWith { builtIn.of(it) }
 
     /** The channel ids listed under [category]. */
-    fun ids(category: Category): Set<String> = idsByCategory[category].orEmpty()
+    fun ids(category: Category): Set<String> = current.of(category).map { it.id }.toSet()
 
     /** Every approved Podcasts, Shiurim or Videos channel id (not music artists). */
-    val allIds: Set<String> by lazy { idsByCategory.values.flatten().toSet() }
+    val allIds: Set<String> get() = current.all().map { it.id }.toSet()
 
     /** Starts as video (Settings > Player): a podcast episode, or an upload by an approved Podcasts, Shiurim or Videos channel. Music stays audio. */
     fun startsAsVideo(isEpisode: Boolean, artistIds: List<String?>): Boolean =

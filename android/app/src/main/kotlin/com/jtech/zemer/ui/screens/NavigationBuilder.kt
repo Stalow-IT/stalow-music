@@ -482,6 +482,12 @@ fun NavGraphBuilder.navigationBuilder(
     composable("bookmarks") {
         BookmarksScreen(navController, scrollBehavior)
     }
+    composable("settings/accounts") {
+        com.jtech.zemer.accounts.AccountsSettings(navController, scrollBehavior)
+    }
+    composable("settings/channels") {
+        com.jtech.zemer.accounts.ChannelsSettings(navController, scrollBehavior)
+    }
     composable("settings/playback_report") {
         com.jtech.zemer.ui.screens.settings.PlaybackReportSettings(navController, scrollBehavior)
     }

@@ -676,6 +676,31 @@ class MainActivity : ComponentActivity() {
                     UnofficialCopyScreen(it)
                     return@ZemerTheme
                 }
+                // Stalow: nothing opens until an admin approves this device; on each start look again, and
+                // pick up the admins' channel changes (re-importing the lists when they changed)
+                val account by com.jtech.zemer.accounts.StalowAccount.state.collectAsState()
+                val accountLifecycle = LocalLifecycleOwner.current
+                DisposableEffect(accountLifecycle) {
+                    val check = {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            com.jtech.zemer.accounts.StalowAccount.refresh()
+                            if (com.jtech.zemer.accounts.StalowAccount.refreshCatalog()) syncUtils.resyncCatalog()
+                        }
+                    }
+                    check()
+                    val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_START) check() }
+                    accountLifecycle.lifecycle.addObserver(observer)
+                    onDispose { accountLifecycle.lifecycle.removeObserver(observer) }
+                }
+                LaunchedEffect(account.status) {
+                    if (account.status == com.jtech.zemer.accounts.StalowAccount.Status.APPROVED &&
+                        com.jtech.zemer.accounts.StalowAccount.refreshCatalog()
+                    ) syncUtils.resyncCatalog()
+                }
+                if (account.status != com.jtech.zemer.accounts.StalowAccount.Status.APPROVED) {
+                    com.jtech.zemer.accounts.AccountGateScreen()
+                    return@ZemerTheme
+                }
                 CompositionLocalProvider(
                     LocalDatabase provides database,
                     LocalContentColor provides if (pureBlack) Color.White else contentColorFor(MaterialTheme.colorScheme.surface),

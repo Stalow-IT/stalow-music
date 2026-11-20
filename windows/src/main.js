@@ -3,7 +3,8 @@ const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session, 
 const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
-const { loadArtists, loadChannels, Catalog } = require('./catalog');
+const { loadArtists, loadChannels, applyOverrides, catalogRows, Catalog } = require('./catalog');
+const { Accounts } = require('./accounts');
 const { Player, PAGE_SCRIPT, STATUS_PREFIX } = require('./player');
 const { DownloadManager } = require('./download-manager');
 const { Sync, SHARED_SETTINGS } = require('./sync');
@@ -20,6 +21,23 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let win = null;
 let player = null;
 let catalog = null;
+let accounts = null;
+let baseList = null;
+let baseChannels = null;
+/** The approved lists: built in, with the admins' changes on top (Settings > Channels & artists). */
+function buildCatalog() {
+  const s = readSettings();
+  const { list, channels } = applyOverrides(baseList, baseChannels, accounts.catalog.entries);
+  catalog = new Catalog(list, { allowFemale: s.allowFemale, blockPodcasts: s.blockPodcasts, channels });
+}
+const accountState = () => ({ ...accounts.state, isAdmin: accounts.isAdmin });
+/** Looks again at this PC's approval and the admins' changes; tells the window when either changed. */
+async function checkAccount() {
+  const before = JSON.stringify(accounts.state);
+  await accounts.refresh();
+  if (JSON.stringify(accounts.state) !== before) send('account', accountState());
+  if (await accounts.refreshCatalog()) { buildCatalog(); send('catalog-changed', true); }
+}
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 const readRaw = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
 const writeRaw = (file, data) => { try { fs.writeFileSync(file, JSON.stringify(data)); return true; } catch { return false; } };
@@ -104,6 +122,22 @@ function updateThumbar(playing) {
 
 // ---------- catalog calls (all results filtered by the approved list) ----------
 const handlers = {
+  // ---- accounts (approval) and, for admins, users and the channel / artist list ----
+  'account:state': async () => accountState(),
+  'account:register': async (name) => { await accounts.register(String(name || '').slice(0, 60)); checkAccount().catch(() => {}); return accountState(); },
+  'account:claim': async ({ name, code } = {}) => { await accounts.claimOwner(String(name || '').slice(0, 60), String(code || '').slice(0, 40)); checkAccount().catch(() => {}); return accountState(); },
+  'account:refresh': async () => { await checkAccount(); return accountState(); },
+  'admin:accounts': async () => accounts.accounts(),
+  'admin:decide': async ({ id, status, role } = {}) => accounts.decide(String(id || ''), { status, role }),
+  'admin:search': async (q) => accounts.search(String(q || '').slice(0, 100)),
+  'admin:rows': async () => catalogRows(baseList, baseChannels, accounts.catalog.entries),
+  'admin:set': async (entry) => {
+    const e = entry || {};
+    await accounts.setEntry({ id: String(e.id || ''), name: String(e.name || '').slice(0, 200), thumbnail: String(e.thumbnail || ''), category: String(e.category || ''), removed: e.removed === true });
+    buildCatalog();
+    send('catalog-changed', true);
+    return true;
+  },
   'catalog:search': async (q) => searchAll(api, catalog, q),
   'catalog:artists': async (text) => catalog.findArtists(text),
   // the approved Podcasts, Shiurim and Videos channels: their uploads start as video (music stays audio)
@@ -367,7 +401,17 @@ app.whenReady().then(async () => {
   });
   sync.start();
   setTimeout(() => sync.syncNow().catch(() => {}), 8000);
-  catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts, channels: loadChannels() });
+  accounts = new Accounts({
+    file: path.join(app.getPath('userData'), 'account.json'),
+    catalogFile: path.join(app.getPath('userData'), 'stalow-catalog.json'),
+    fetchImpl: (url, init) => net.fetch(url, init),
+    deviceName: `Windows: ${os.hostname()}`.slice(0, 80),
+  });
+  baseList = loadArtists();
+  baseChannels = loadChannels();
+  buildCatalog();
+  setTimeout(() => checkAccount().catch(() => {}), 1500);
+  setInterval(() => checkAccount().catch(() => {}), 10 * 60 * 1000);
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
     else if (ev.state === 'paused' || ev.state === 'ended') updateThumbar(false);

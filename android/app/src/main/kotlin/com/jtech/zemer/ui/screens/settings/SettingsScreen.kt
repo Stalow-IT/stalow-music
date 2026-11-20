@@ -18,6 +18,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -188,7 +189,27 @@ fun SettingsScreen(
     } else {
         emptyList()
     }
-    val allSettings = baseSettings + androidAutoSettings + if (isLoggedIn) {
+    // Stalow: admins manage users and the channel / artist list
+    val account by com.jtech.zemer.accounts.StalowAccount.state.collectAsState()
+    val adminSettings = if (account.isAdmin) listOf(
+        SettingItem(
+            id = "accounts",
+            title = stringResource(R.string.stalow_accounts),
+            description = stringResource(R.string.stalow_accounts_desc),
+            icon = R.drawable.account,
+            section = stringResource(R.string.settings_section_privacy),
+            route = "settings/accounts"
+        ),
+        SettingItem(
+            id = "channels",
+            title = stringResource(R.string.stalow_channels),
+            description = stringResource(R.string.stalow_channels_desc),
+            icon = R.drawable.artist,
+            section = stringResource(R.string.settings_section_privacy),
+            route = "settings/channels"
+        ),
+    ) else emptyList()
+    val allSettings = adminSettings + baseSettings + androidAutoSettings + if (isLoggedIn) {
         listOf(
             SettingItem(
                 id = "logout",
