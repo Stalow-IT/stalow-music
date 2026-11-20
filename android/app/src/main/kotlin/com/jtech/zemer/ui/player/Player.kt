@@ -149,6 +149,7 @@ import com.jtech.zemer.utils.makeTimeString
 import com.jtech.zemer.utils.rememberEnumPreference
 import com.jtech.zemer.utils.rememberPreference
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -242,6 +243,12 @@ fun BottomSheetPlayer(
     // exactly what makes "track end in fullscreen → advance as audio" fall out for free.
     LaunchedEffect(isVideoMode, state.isExpanded) {
         if (PlayerVideoUiLogic.shouldExitFullscreen(isFullscreen, isVideoMode, state.isExpanded)) {
+            // Stalow: video ending exits at once; a sheet "collapse" must last (the system shade's
+            // inset change reads as not-expanded for a moment, and that dropped full screen)
+            if (isVideoMode) {
+                kotlinx.coroutines.delay(600)
+                if (!PlayerVideoUiLogic.shouldExitFullscreen(isFullscreen, playerConnection.isVideoMode.value, state.isExpanded)) return@LaunchedEffect
+            }
             isFullscreen = false
         }
     }
@@ -262,6 +269,41 @@ fun BottomSheetPlayer(
     LaunchedEffect(Unit) {
         playerConnection.videoErrorEvents.collect {
             context.toast(R.string.video_playback_error)
+        }
+    }
+    LaunchedEffect(Unit) {
+        playerConnection.weakConnectionEvents.collect { context.toast(R.string.stalow_weak_connection_audio) }
+    }
+
+    // Stalow: no video while the player is shrunk to the mini bar. Nothing shows there, but the video kept
+    // streaming (stalling on a phone connection) and leaving the app opened the small video window.
+    // Shrinking switches to audio; opening the player again goes back to video.
+    val currentInPip by androidx.compose.runtime.rememberUpdatedState(inPip)
+    LaunchedEffect(Unit) {
+        var wasExpanded = state.isExpanded
+        // The item that was showing video when the player was shrunk; only that same item goes back to video.
+        var videoItemBeforeCollapse: String? = null
+        // collectLatest + a short wait: only a real shrink counts. Pulling the system shade over a full-screen
+        // video changes the screen's insets for a moment and the sheet briefly reads as not expanded, which
+        // switched to audio for a second and back. A shrink must reach the collapsed mini bar and stay there.
+        androidx.compose.runtime.snapshotFlow { state.isExpanded }.collectLatest { expanded ->
+            if (wasExpanded && !expanded) {
+                kotlinx.coroutines.delay(600)
+                if (state.isExpanded || !state.isCollapsed) return@collectLatest // a blip, not a shrink
+            }
+            val currentId = playerConnection.mediaMetadata.value?.id
+            if (wasExpanded && !expanded && !currentInPip) {
+                playerConnection.pauseAutoVideo(true)
+                if (playerConnection.isVideoMode.value) {
+                    videoItemBeforeCollapse = currentId
+                    playerConnection.setVideoMode(false, "player shrunk to the mini bar")
+                }
+            } else if (!wasExpanded && expanded) {
+                playerConnection.pauseAutoVideo(false)
+                if (videoItemBeforeCollapse != null && videoItemBeforeCollapse == currentId) playerConnection.setVideoMode(true, "player opened again")
+                videoItemBeforeCollapse = null
+            }
+            wasExpanded = expanded
         }
     }
 
@@ -405,7 +447,7 @@ fun BottomSheetPlayer(
     // does not auto-restore it.
     LaunchedEffect(lyricsSheetState.isExpanded, isVideoMode) {
         if (PlayerVideoUiLogic.shouldRevertVideoForLyrics(lyricsSheetState.isExpanded, isVideoMode)) {
-            playerConnection.setVideoMode(false)
+            playerConnection.setVideoMode(false, "lyrics opened")
         }
     }
 
@@ -765,8 +807,11 @@ fun BottomSheetPlayer(
 
             // Episode-only controls (podcasts are long): playback speed + 30s skip back/forward.
             // Hidden for music so the normal transport is unchanged.
-            if (mediaMetadata.isEpisode) {
+            // Stalow: 10 s back / forward for everything playing as audio (video has double-tap on its sides);
+            // episodes also keep their speed control.
+            if (!isVideoMode && !isStationBroadcast) {
                 EpisodePlaybackControls(
+                    showSpeed = mediaMetadata.isEpisode,
                     playerConnection = playerConnection,
                     contentColor = TextBackgroundColor,
                     onSeekTo = { target ->
@@ -962,6 +1007,7 @@ fun BottomSheetPlayer(
  */
 @Composable
 private fun EpisodePlaybackControls(
+    showSpeed: Boolean,
     playerConnection: PlayerConnection,
     contentColor: Color,
     onSeekTo: (Long) -> Unit,
@@ -976,7 +1022,7 @@ private fun EpisodePlaybackControls(
         horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
+        if (showSpeed) Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .focusBorder(RoundedCornerShape(50))
@@ -994,23 +1040,37 @@ private fun EpisodePlaybackControls(
             Spacer(Modifier.width(6.dp))
             Text(text = episodeSpeedLabel(speed), color = contentColor, style = MaterialTheme.typography.labelLarge)
         }
-        IconButton(
-            onClick = {
-                // Cast-aware clocks (currentPositionMs/DurationMs): the LOCAL player's clock is
+        // A pill sized to its content (an IconButton's fixed 48dp squeezed "10" onto two lines).
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .focusBorder(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(50))
+                .clickable {
+                    // Cast-aware clocks (currentPositionMs/DurationMs): the LOCAL player's clock is
                 // frozen while casting, so reading it would compute the skip from a stale position.
                 onSeekTo(episodeSkipTarget(playerConnection.currentPositionMs(), playerConnection.currentDurationMs(), forward = false))
-            },
-            modifier = Modifier.focusBorder(RoundedCornerShape(50)),
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
-            Icon(painter = painterResource(R.drawable.fast_rewind), contentDescription = null, tint = contentColor)
+                Icon(painter = painterResource(R.drawable.fast_rewind), contentDescription = stringResource(R.string.stalow_seek_back_10), tint = contentColor, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
         }
-        IconButton(
-            onClick = {
-                onSeekTo(episodeSkipTarget(playerConnection.currentPositionMs(), playerConnection.currentDurationMs(), forward = true))
-            },
-            modifier = Modifier.focusBorder(RoundedCornerShape(50)),
+        // A pill sized to its content (an IconButton's fixed 48dp squeezed "10" onto two lines).
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .focusBorder(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(50))
+                .clickable {
+                    onSeekTo(episodeSkipTarget(playerConnection.currentPositionMs(), playerConnection.currentDurationMs(), forward = true))
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
-            Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = null, tint = contentColor)
+                Text("10", color = contentColor, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                Spacer(Modifier.width(4.dp))
+                Icon(painter = painterResource(R.drawable.fast_forward), contentDescription = stringResource(R.string.stalow_seek_forward_10), tint = contentColor, modifier = Modifier.size(22.dp))
         }
     }
 }

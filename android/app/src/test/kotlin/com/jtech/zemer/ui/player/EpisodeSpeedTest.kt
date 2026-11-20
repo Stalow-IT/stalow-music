@@ -29,19 +29,19 @@ class EpisodeSpeedTest {
 
     @Test
     fun `skip forward advances 30s and clamps to a known duration`() {
-        assertEquals(90_000L, episodeSkipTarget(60_000L, 3_600_000L, forward = true))
+        assertEquals(70_000L, episodeSkipTarget(60_000L, 3_600_000L, forward = true))
         assertEquals(3_600_000L, episodeSkipTarget(3_590_000L, 3_600_000L, forward = true))
     }
 
     @Test
     fun `skip forward with an unset duration is unclamped (the player clamps internally)`() {
-        assertEquals(90_000L, episodeSkipTarget(60_000L, -1L, forward = true))
-        assertEquals(90_000L, episodeSkipTarget(60_000L, 0L, forward = true))
+        assertEquals(70_000L, episodeSkipTarget(60_000L, -1L, forward = true))
+        assertEquals(70_000L, episodeSkipTarget(60_000L, 0L, forward = true))
     }
 
     @Test
     fun `skip back rewinds 30s and clamps to the start`() {
-        assertEquals(30_000L, episodeSkipTarget(60_000L, 3_600_000L, forward = false))
-        assertEquals(0L, episodeSkipTarget(10_000L, 3_600_000L, forward = false))
+        assertEquals(50_000L, episodeSkipTarget(60_000L, 3_600_000L, forward = false))
+        assertEquals(0L, episodeSkipTarget(5_000L, 3_600_000L, forward = false))
     }
 }

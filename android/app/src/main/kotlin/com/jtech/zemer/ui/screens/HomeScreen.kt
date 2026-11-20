@@ -173,8 +173,6 @@ fun HomeScreen(
     val playerConnection = LocalPlayerConnection.current ?: return
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
-    var stalowBookmarksJson by rememberPreference(com.jtech.zemer.playback.BookmarksKey, "")
-    val stalowBookmarks = remember(stalowBookmarksJson) { com.jtech.zemer.playback.Bookmarks.decode(stalowBookmarksJson) }
 
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -184,6 +182,12 @@ fun HomeScreen(
     val featuredPlaylists = homeUiState.featuredPlaylists
     val forgottenFavorites = homeUiState.forgottenFavorites
     val keepListening = homeUiState.keepListening
+    val mostPlayed by remember {
+        database.mostPlayedSongs(
+            fromTimeStamp = java.time.LocalDateTime.now().minusDays(30).toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
+            limit = 20,
+        )
+    }.collectAsState(initial = emptyList())
     val featuredAlbums = homeUiState.featuredAlbums
     val featuredArtists = homeUiState.featuredArtists
     val featuredVideos = homeUiState.featuredVideos
@@ -617,36 +621,7 @@ fun HomeScreen(
                     }
                 }
 
-                // Stalow: the places saved with the player's Bookmark button (tap = carry on, long press = remove).
-                if (stalowBookmarks.isNotEmpty()) {
-                    item(key = "stalow_bookmarks_title", contentType = "header") {
-                        NavigationTitle(
-                            title = stringResource(R.string.stalow_bookmarks),
-                            modifier = Modifier.animateItem(),
-                        )
-                    }
-                    item(key = "stalow_bookmarks_row", contentType = "row") {
-                        HomeBookmarksRow(
-                            bookmarks = stalowBookmarks,
-                            onOpen = { bookmark ->
-                                playerConnection.playQueue(
-                                    ListQueue(
-                                        title = bookmark.title,
-                                        items = listOf(bookmark.toMediaMetadata().toMediaItem()),
-                                        position = bookmark.positionMs,
-                                        playSource = if (bookmark.isEpisode) PlaySource.podcast(null) else PlaySource.OTHER,
-                                    ),
-                                )
-                            },
-                            onRemove = { bookmark ->
-                                stalowBookmarksJson = com.jtech.zemer.playback.Bookmarks.encode(
-                                    com.jtech.zemer.playback.Bookmarks.remove(stalowBookmarks, bookmark.id),
-                                )
-                                context.toast(R.string.stalow_bookmark_removed)
-                            },
-                        )
-                    }
-                }
+                // Stalow: Bookmarks live in the side menu (BookmarksScreen), not on Home.
 
                 // Stalow: shortcuts to the approved Podcasts, Shiurim and Videos channels.
                 item(key = "stalow_channel_shortcuts", contentType = "header") {
@@ -688,7 +663,7 @@ fun HomeScreen(
                     }
 
                     item(key = "keep_listening_list", contentType = "grid") {
-                        val rows = if (keepListening.size > 6) 2 else 1
+                        val rows = 1 // Stalow: one row; the arrow opens the full list
                         val keepListeningGridState = rememberLazyGridState()
                         // Mixed row: albums and playlists sit alongside songs and simply have no
                         // videoId to report.
@@ -719,6 +694,77 @@ fun HomeScreen(
                             ) {
                                 localGridItem(it)
                             }
+                        }
+                    }
+                }
+
+                // Stalow: Most played (the last 30 days), one row; the arrow opens Stats (most played songs and artists).
+                mostPlayed.takeIf { it.isNotEmpty() }?.let { mostPlayed ->
+                    item(key = "most_played_title", contentType = "header") {
+                        NavigationTitle(
+                            title = stringResource(R.string.stalow_most_played),
+                            onClick = { navController.navigate("stats") },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+                    item(key = "most_played_list", contentType = "grid") {
+                        LazyHorizontalGrid(
+                            state = rememberLazyGridState(),
+                            rows = GridCells.Fixed(1),
+                            contentPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(GridThumbnailHeight + with(LocalDensity.current) {
+                                    MaterialTheme.typography.bodyLarge.lineHeight.toDp() * 2 +
+                                        MaterialTheme.typography.bodyMedium.lineHeight.toDp() * 2
+                                })
+                                .animateItem()
+                        ) {
+                            items(items = mostPlayed, key = { "mp_" + it.id }, contentType = { "local_item" }) {
+                                localGridItem(it)
+                            }
+                        }
+                    }
+                }
+
+                // Stalow: New releases, near the top: a few, the arrow opens the full list.
+                latestReleasesCapped.takeIf { it.isNotEmpty() }?.let { releases ->
+                    item(key = "latest_releases_title", contentType = "header") {
+                        NavigationTitle(
+                            title = stringResource(R.string.latest_releases),
+                            onClick = { navController.navigate("latest_releases") },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+
+                    item(key = "latest_releases_list", contentType = "grid") {
+                        // Material 3 Expressive: Latest Releases is a multi-browse carousel - a large hero
+                        // cover with shape-morphing, peeking neighbours. Each hero is the shared
+                        // LatestReleaseCarouselItem (D-pad focus + library badges + play affordances),
+                        // so it can't drift from the "See all" LatestReleaseCard.
+                        val latestCarouselState = rememberCarouselState { releases.size }
+                        HorizontalMultiBrowseCarousel(
+                            state = latestCarouselState,
+                            preferredItemWidth = 180.dp,
+                            itemSpacing = 8.dp,
+                            // One item per swipe; the spec + rationale live in heroCarouselFlingBehavior.
+                            flingBehavior = heroCarouselFlingBehavior(latestCarouselState),
+                            contentPadding = WindowInsets.systemBars
+                                .only(WindowInsetsSides.Horizontal)
+                                .asPaddingValues(),
+                            modifier = Modifier
+                                .padding(vertical = 12.dp)
+                                .height(180.dp)
+                                .animateItem(),
+                        ) { index ->
+                            LatestReleaseCarouselItem(
+                                release = releases[index],
+                                navController = navController,
+                                playerConnection = playerConnection,
+                                mediaMetadata = mediaMetadata,
+                                isPlaying = isPlaying,
+                                coroutineScope = scope,
+                            )
                         }
                     }
                 }
@@ -893,47 +939,6 @@ fun HomeScreen(
                                 contentFilter = statusContentFilter,
                                 onCreatorClick = { creatorId -> navController.navigate(storyRoute(creatorId)) },
                                 modifier = Modifier.animateItem(),
-                            )
-                        }
-                    }
-                }
-
-                latestReleasesCapped.takeIf { it.isNotEmpty() }?.let { releases ->
-                    item(key = "latest_releases_title", contentType = "header") {
-                        NavigationTitle(
-                            title = stringResource(R.string.latest_releases),
-                            onClick = { navController.navigate("latest_releases") },
-                            modifier = Modifier.animateItem()
-                        )
-                    }
-
-                    item(key = "latest_releases_list", contentType = "grid") {
-                        // Material 3 Expressive: Latest Releases is a multi-browse carousel - a large hero
-                        // cover with shape-morphing, peeking neighbours. Each hero is the shared
-                        // LatestReleaseCarouselItem (D-pad focus + library badges + play affordances),
-                        // so it can't drift from the "See all" LatestReleaseCard.
-                        val latestCarouselState = rememberCarouselState { releases.size }
-                        HorizontalMultiBrowseCarousel(
-                            state = latestCarouselState,
-                            preferredItemWidth = 180.dp,
-                            itemSpacing = 8.dp,
-                            // One item per swipe; the spec + rationale live in heroCarouselFlingBehavior.
-                            flingBehavior = heroCarouselFlingBehavior(latestCarouselState),
-                            contentPadding = WindowInsets.systemBars
-                                .only(WindowInsetsSides.Horizontal)
-                                .asPaddingValues(),
-                            modifier = Modifier
-                                .padding(vertical = 12.dp)
-                                .height(180.dp)
-                                .animateItem(),
-                        ) { index ->
-                            LatestReleaseCarouselItem(
-                                release = releases[index],
-                                navController = navController,
-                                playerConnection = playerConnection,
-                                mediaMetadata = mediaMetadata,
-                                isPlaying = isPlaying,
-                                coroutineScope = scope,
                             )
                         }
                     }

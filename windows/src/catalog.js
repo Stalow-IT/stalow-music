@@ -24,6 +24,43 @@ function loadChannels(file = path.join(__dirname, '..', 'data', 'channels.json')
   return out;
 }
 
+/**
+ * The built-in lists with the admins' changes (Settings > Channels & artists) on top: a removed entry shows nowhere,
+ * a moved one only in its new category, an added one like a built-in one. [entries]: {id: {name, thumbnail, category, removed}}.
+ */
+function applyOverrides(list, channels, entries = {}) {
+  const ids = Object.keys(entries);
+  if (!ids.length) return { list, channels };
+  const builtIn = new Map();
+  for (const a of list.artists) builtIn.set(a.id, a);
+  for (const c of CHANNEL_CATEGORIES) for (const ch of channels[c] || []) if (!builtIn.has(ch.id)) builtIn.set(ch.id, ch);
+  const make = (e) => {
+    const old = builtIn.get(e.id) || {};
+    return { ...old, id: e.id, name: old.name || e.name || e.id, thumbnail: e.thumbnail || old.thumbnail || old.thumbnailUrl || '', thumbnailUrl: e.thumbnail || old.thumbnailUrl || old.thumbnail || '' };
+  };
+  const live = Object.values(entries).filter((e) => !e.removed);
+  const artists = list.artists.filter((a) => !entries[a.id]).concat(live.filter((e) => e.category === 'music').map(make));
+  const outChannels = { version: channels.version };
+  for (const c of CHANNEL_CATEGORIES) {
+    outChannels[c] = (channels[c] || []).filter((ch) => !entries[ch.id]).concat(live.filter((e) => e.category === c).map(make));
+  }
+  return { list: { ...list, artists }, channels: outChannels };
+}
+
+/** Every built-in artist and channel with the admins' changes, for Settings > Channels & artists (removed ones last). */
+function catalogRows(list, channels, entries = {}) {
+  const rows = new Map();
+  for (const a of list.artists) rows.set(a.id, { id: a.id, name: a.name, thumbnail: a.thumbnail || '', category: 'music', removed: false });
+  for (const c of CHANNEL_CATEGORIES) {
+    for (const ch of channels[c] || []) if (!rows.has(ch.id)) rows.set(ch.id, { id: ch.id, name: ch.name, thumbnail: ch.thumbnailUrl || ch.thumbnail || '', category: c, removed: false });
+  }
+  for (const e of Object.values(entries)) {
+    const old = rows.get(e.id);
+    rows.set(e.id, { id: e.id, name: e.name || (old && old.name) || e.id, thumbnail: e.thumbnail || (old && old.thumbnail) || '', category: e.category, removed: e.removed });
+  }
+  return [...rows.values()].sort((a, b) => (a.removed - b.removed) || a.name.localeCompare(b.name));
+}
+
 class Catalog {
   constructor(list, { allowFemale = false, blockPodcasts = false, channels = null } = {}) {
     this.version = list.version;
@@ -129,4 +166,4 @@ class Catalog {
   }
 }
 
-module.exports = { loadArtists, loadChannels, Catalog };
+module.exports = { loadArtists, loadChannels, applyOverrides, catalogRows, Catalog };

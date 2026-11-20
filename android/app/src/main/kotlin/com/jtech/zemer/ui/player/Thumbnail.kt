@@ -362,14 +362,15 @@ fun Thumbnail(
                                                 val duration = playerConnection.currentDurationMs()
 
                                                 val now = System.currentTimeMillis()
-                                                if (incrementalSeekSkipEnabled && now - lastTapTime < 1000) {
+                                                // Stalow: like YouTube, each further quick tap adds 10 more seconds
+                                                if (now - lastTapTime < 1000) {
                                                     skipMultiplier++
                                                 } else {
                                                     skipMultiplier = 1
                                                 }
                                                 lastTapTime = now
 
-                                                val skipAmount = 5000 * skipMultiplier
+                                                val skipAmount = 10000 * skipMultiplier
 
                                                 if ((layoutDirection == LayoutDirection.Ltr && offset.x < size.width / 2) ||
                                                     (layoutDirection == LayoutDirection.Rtl && offset.x > size.width / 2)

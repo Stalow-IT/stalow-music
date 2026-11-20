@@ -479,6 +479,18 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/privacy") {
         PrivacySettings(navController, scrollBehavior)
     }
+    composable("bookmarks") {
+        BookmarksScreen(navController, scrollBehavior)
+    }
+    composable("settings/accounts") {
+        com.jtech.zemer.accounts.AccountsSettings(navController, scrollBehavior)
+    }
+    composable("settings/channels") {
+        com.jtech.zemer.accounts.ChannelsSettings(navController, scrollBehavior)
+    }
+    composable("settings/playback_report") {
+        com.jtech.zemer.ui.screens.settings.PlaybackReportSettings(navController, scrollBehavior)
+    }
     composable("settings/pc_sync") {
         PcSyncSettings(navController, scrollBehavior)
     }
