@@ -365,4 +365,9 @@
     <string name="stalow_failed">לא הצליח: %1$s</string>
     <string name="stalow_count">%1$d מוצגים</string>
     <string name="stalow_add">הוספה</string>
+    <string name="stalow_picture">תמונה</string>
+    <string name="stalow_picture_for">תמונה עבור %1$s</string>
+    <string name="stalow_picture_search_hint">חיפוש לפי שם אחר</string>
+    <string name="stalow_picture_tap">בחרו תמונה ולחצו על שימוש בתמונה. כולם יראו אותה.</string>
+    <string name="stalow_picture_use">שימוש בתמונה</string>
 </resources>

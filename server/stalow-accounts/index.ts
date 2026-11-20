@@ -4,7 +4,7 @@
 //   register {name, device}  status  claimOwner {code}
 //   accounts.list  accounts.decide {id, status?, role?}            (admins)
 //   catalog.get                                                     (approved accounts)
-//   catalog.set {entry:{id,name,thumbnail,category,removed}}  catalog.search {q}   (admins)
+//   catalog.set {entry:{id,name,thumbnail,category,removed}}  catalog.search {q}  catalog.images {id, q}   (admins)
 // Deployed as the Supabase edge function "stalow-accounts" (verify_jwt off) in the it-manager project.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -121,6 +121,71 @@ async function search(q: string) {
   return [...found.values()].slice(0, 30);
 }
 
+// ---- Picture choices for a channel / artist (Settings > Channels & artists > Picture) ----
+const bigger = (u: string) => (u.startsWith("//") ? "https:" + u : u)
+  .replace(/=s\d+(-[^=/]*)?$/, "=s544-c-k-c0x00ffffff-no-rj")
+  .replace(/=w\d+-h\d+(-[^=/]*)?$/, "=w544-h544-l90-rj");
+function thumbsIn(x: any, out: string[], max = 60) {
+  if (out.length >= max || !x || typeof x !== "object") return;
+  if (Array.isArray(x)) { for (const v of x) thumbsIn(v, out, max); return; }
+  if (Array.isArray(x.thumbnails) && x.thumbnails.length) {
+    const u = String(x.thumbnails[x.thumbnails.length - 1].url || "");
+    if (/^(https:)?\/\/(yt3|lh3|i\.ytimg)\./.test(u)) out.push(bigger(u));
+    return;
+  }
+  if (Array.isArray(x.sources) && x.sources.length && typeof x.sources[0]?.url === "string") {
+    const u = String(x.sources[x.sources.length - 1].url);
+    if (/^(https:)?\/\/(yt3|lh3|i\.ytimg)\./.test(u)) out.push(bigger(u));
+    return;
+  }
+  for (const k in x) thumbsIn(x[k], out, max);
+}
+async function images(id: string, q: string) {
+  const found: { url: string; from: string }[] = [];
+  const add = (urls: string[], from: string, max: number) => {
+    for (const url of urls) {
+      if (found.length >= 40 || max <= 0) return;
+      if (!/^https:\/\//.test(url) || found.some((f) => f.url === url)) continue;
+      found.push({ url, from }); max--;
+    }
+  };
+  const jobs: Promise<void>[] = [];
+  if (/^UC[A-Za-z0-9_-]{10,40}$/.test(id)) {
+    // the artist page on YouTube Music: its picture first, then its album and single covers
+    jobs.push((async () => {
+      const res = await fetch("https://music.youtube.com/youtubei/v1/browse?prettyPrint=false", {
+        method: "POST", headers: { "Content-Type": "application/json", Origin: "https://music.youtube.com", Referer: "https://music.youtube.com/", "User-Agent": YT_HEADERS["User-Agent"] },
+        body: JSON.stringify({ context: { client: CLIENT }, browseId: id }),
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const head: string[] = []; thumbsIn(j?.header, head, 4);
+      add(head, "YouTube Music", 3);
+      const rest: string[] = []; thumbsIn(j?.contents, rest, 30);
+      add(rest, "YouTube Music", 8);
+    })().catch(() => {}));
+    // the channel on YouTube: its avatar and banner
+    jobs.push((async () => {
+      const res = await fetch("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false", {
+        method: "POST", headers: YT_HEADERS, body: JSON.stringify({ context: { client: WEB }, browseId: id }),
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const head: string[] = []; thumbsIn(j?.header, head, 6); thumbsIn(j?.metadata, head, 8);
+      add(head.filter((u) => !/i\.ytimg/.test(u)), "YouTube", 4);
+    })().catch(() => {}));
+  }
+  if (q) {
+    // the same name searched on both: the artists and channels it finds
+    jobs.push((async () => {
+      const [a, b] = await Promise.all([ytmSearch(q).catch(() => []), ytChannelSearch(q).catch(() => [])]);
+      add([...a, ...b].filter((r) => r.thumbnail).map((r) => bigger(r.thumbnail)), "Search", 14);
+    })());
+  }
+  await Promise.all(jobs);
+  return found;
+}
+
 async function bumpVersion() {
   const { data } = await db.from("stalow_account_state").select("catalog_version").eq("id", 1).single();
   await db.from("stalow_account_state").update({ catalog_version: (data?.catalog_version || 1) + 1 }).eq("id", 1);
@@ -193,6 +258,11 @@ Deno.serve(async (req) => {
       const q = clean(b.q, 100);
       if (!q) return json({ results: [] });
       return json({ results: await search(q) });
+    }
+
+    if (b.action === "catalog.images") {
+      const id = typeof b.id === "string" ? b.id : "";
+      return json({ images: await images(id, clean(b.q, 100)) });
     }
 
     if (b.action === "catalog.set") {

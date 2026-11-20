@@ -130,6 +130,7 @@ const handlers = {
   'admin:accounts': async () => accounts.accounts(),
   'admin:decide': async ({ id, status, role } = {}) => accounts.decide(String(id || ''), { status, role }),
   'admin:search': async (q) => accounts.search(String(q || '').slice(0, 100)),
+  'admin:pictures': async ({ id, q } = {}) => accounts.pictures(String(id || ''), String(q || '').slice(0, 100)),
   'admin:rows': async () => catalogRows(baseList, baseChannels, accounts.catalog.entries),
   'admin:set': async (entry) => {
     const e = entry || {};

@@ -139,6 +139,15 @@ object StalowAccount {
         }
     }
 
+    data class Picture(val url: String, val from: String)
+
+    /** Possible pictures for a channel / artist: its pages on YouTube Music and YouTube, and a search for [q]. */
+    suspend fun pictures(id: String, q: String): List<Picture> {
+        val list = call("catalog.images", JSONObject().put("id", id).put("q", q)).optJSONArray("images") ?: JSONArray()
+        return (0 until list.length()).mapNotNull { list.optJSONObject(it) }.map { Picture(it.optString("url"), it.optString("from")) }
+            .filter { it.url.startsWith("https://") }
+    }
+
     /** Adds, moves or removes one channel / artist for everyone, then applies it on this phone. */
     suspend fun setEntry(id: String, name: String, thumbnail: String?, category: String, removed: Boolean) {
         call(

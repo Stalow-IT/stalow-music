@@ -590,4 +590,9 @@
     <string name="stalow_failed">Did not work: %1$s</string>
     <string name="stalow_count">%1$d shown</string>
     <string name="stalow_add">Add</string>
+    <string name="stalow_picture">Picture</string>
+    <string name="stalow_picture_for">Picture for %1$s</string>
+    <string name="stalow_picture_search_hint">Search by another name</string>
+    <string name="stalow_picture_tap">Tap a picture, then Use this picture. Everyone sees it.</string>
+    <string name="stalow_picture_use">Use this picture</string>
 </resources>

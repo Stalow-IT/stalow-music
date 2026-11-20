@@ -131,6 +131,7 @@ PAGES.channels = async () => {
       const ctl = r.removed
         ? el('button', { class: 'btn secondary', text: t('admin_restore'), onclick: (e) => save({ ...r, removed: false }, e.target) })
         : [categorySelect(r.category, (c, s) => save({ ...r, category: c }, s)),
+          el('button', { class: 'btn secondary', text: t('admin_picture'), onclick: () => pictureDialog(r, save) }),
           el('button', { class: 'btn danger', text: t('admin_delete'), onclick: (e) => { if (confirm(t('admin_delete_q', r.name))) save({ ...r, removed: true }, e.target); } })];
       return el('div', { class: 'item admin-row' + (r.removed ? ' removed' : '') },
         el('div', { class: 'grow' }, img(r.thumbnail, r.name), el('div', { class: 'it', text: r.name })),
@@ -176,4 +177,44 @@ function addDialog(rows, save) {
   document.body.append(dlg);
   dlg.showModal();
   q.focus();
+}
+
+/** Possible pictures for one channel / artist (its own pages, and a search by name); pick one for everyone. */
+function pictureDialog(r, save) {
+  const q = el('input', { class: 'searchbox', type: 'search', placeholder: t('admin_picture_hint'), 'aria-label': t('admin_picture_hint') });
+  q.value = r.name;
+  const grid = el('div', { class: 'picture-grid' });
+  let chosen = null;
+  const use = el('button', { class: 'btn', text: t('admin_picture_use'), disabled: true, onclick: async () => {
+    if (!chosen) return;
+    use.disabled = true;
+    await save({ ...r, thumbnail: chosen });
+    dlg.close();
+  } });
+  const load = async () => {
+    find.disabled = true; grid.replaceChildren(el('div', { class: 'muted', text: t('searching') }));
+    try {
+      const list = await stalow.adminPictures(r.id, q.value.trim());
+      grid.replaceChildren(...(list.length ? list.map((p) => {
+        const b = el('button', { class: 'picture', title: p.from, onclick: () => {
+          chosen = p.url; use.disabled = false;
+          grid.querySelectorAll('.picture').forEach((x) => x.classList.toggle('on', x === b));
+        } }, el('img', { src: p.url, alt: '', loading: 'lazy' }));
+        b.querySelector('img').addEventListener('error', () => b.remove());
+        return b;
+      }) : [el('div', { class: 'muted', text: t('admin_no_results') })]));
+    } catch (e) { grid.replaceChildren(el('div', { class: 'muted', text: t('admin_failed', e.message) })); }
+    find.disabled = false;
+  };
+  const find = el('button', { class: 'btn secondary', text: t('search'), onclick: load });
+  q.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+  const dlg = el('dialog', { class: 'admin-dialog' },
+    el('div', { class: 'admin-top' }, el('h2', { text: t('admin_picture_for', r.name) }), el('button', { class: 'icon-btn', 'aria-label': t('close'), onclick: () => dlg.close() }, icon('close'))),
+    el('div', { class: 'admin-top' }, q, find),
+    el('div', { class: 'muted', text: t('admin_picture_tap') }), grid,
+    el('div', { class: 'admin-top end' }, use));
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  load();
 }

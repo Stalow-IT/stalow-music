@@ -289,7 +289,9 @@ fun ArtistScreen(
                 }
             } else {
                 item(key = "header") {
-                    val thumbnail = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
+                    // a picture an admin chose (Settings > Channels & artists) comes first
+                    val thumbnail = com.jtech.zemer.utils.CatalogOverrides.entries[viewModel.artistId]?.thumbnail?.takeIf { it.isNotBlank() }
+                        ?: artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
                     val artistName = artistPage?.artist?.title ?: libraryArtist?.artist?.name
                     val isSubscribed = libraryArtistEntity?.bookmarkedAt != null
 

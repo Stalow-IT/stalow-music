@@ -685,6 +685,7 @@ class MainActivity : ComponentActivity() {
                         lifecycleScope.launch(Dispatchers.IO) {
                             com.jtech.zemer.accounts.StalowAccount.refresh()
                             if (com.jtech.zemer.accounts.StalowAccount.refreshCatalog()) syncUtils.resyncCatalog()
+                            else syncUtils.applyCatalogPictures()
                         }
                     }
                     check()

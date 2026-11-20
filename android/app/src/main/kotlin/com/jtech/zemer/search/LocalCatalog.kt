@@ -345,8 +345,12 @@ class LocalCatalog(private val database: MusicDatabase) {
     // Artist images from the built-in list (the whitelist table does not store them).
     @Volatile
     private var thumbnails: Map<String, String>? = null
+    @Volatile
+    private var thumbnailsVersion = -1L
 
     private suspend fun thumbnailOf(artistId: String): String? {
+        // the admins' list changes (a new picture, an added artist) rebuild it
+        if (thumbnailsVersion != com.jtech.zemer.utils.CatalogOverrides.version) { thumbnails = null; thumbnailsVersion = com.jtech.zemer.utils.CatalogOverrides.version }
         val map = thumbnails ?: runCatching {
             com.jtech.zemer.utils.ZemerContentClient.whitelist()
                 .mapNotNull { doc -> doc.thumbnail?.let { (doc.id.ifBlank { doc.artistId.orEmpty() }) to it } }

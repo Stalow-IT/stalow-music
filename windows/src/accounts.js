@@ -87,6 +87,7 @@ class Accounts {
   async accounts() { return (await this.call('accounts.list')).accounts || []; }
   async decide(id, { status, role } = {}) { return this.call('accounts.decide', { id, status, role }); }
   async search(q) { return (await this.call('catalog.search', { q })).results || []; }
+  async pictures(id, q) { return ((await this.call('catalog.images', { id, q })).images || []).filter((p) => p && /^https:\/\//.test(p.url)); }
   async setEntry(entry) {
     await this.call('catalog.set', { entry });
     await this.refreshCatalog();

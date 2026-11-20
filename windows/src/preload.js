@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('stalow', {
   adminAccounts: () => call('admin:accounts'),
   adminDecide: (id, status, role) => call('admin:decide', { id, status, role }),
   adminSearch: (q) => call('admin:search', q),
+  adminPictures: (id, q) => call('admin:pictures', { id, q }),
   adminRows: () => call('admin:rows'),
   adminSet: (entry) => call('admin:set', entry),
 });

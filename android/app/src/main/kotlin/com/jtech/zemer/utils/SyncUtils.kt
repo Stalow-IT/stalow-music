@@ -840,6 +840,17 @@ class SyncUtils @Inject constructor(
             while (isSyncingWhitelist.value || isSyncingPodcastWhitelist.value) kotlinx.coroutines.delay(200)
             syncArtistWhitelist()
             syncPodcastWhitelist()
+            applyCatalogPictures()
+        }
+    }
+
+    /** Stalow: the pictures admins chose (Settings > Channels & artists > Picture) replace the artists' own. */
+    suspend fun applyCatalogPictures() {
+        withContext(Dispatchers.IO) {
+            for (e in CatalogOverrides.entries.values) {
+                if (e.removed || e.thumbnail.isBlank()) continue
+                runCatching { database.replaceArtistThumbnailUrl(e.id, e.thumbnail) }
+            }
         }
     }
 

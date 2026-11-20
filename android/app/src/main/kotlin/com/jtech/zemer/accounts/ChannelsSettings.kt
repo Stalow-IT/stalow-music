@@ -1,6 +1,14 @@
 package com.jtech.zemer.accounts
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -129,6 +137,7 @@ fun ChannelsSettings(
     var busy by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<CatalogRow?>(null) }
+    var pictureFor by remember { mutableStateOf<CatalogRow?>(null) }
 
     fun save(row: CatalogRow, category: String = row.category, removed: Boolean = row.removed, toastRes: Int = R.string.stalow_channels_saved) {
         if (busy) return
@@ -194,7 +203,7 @@ fun ChannelsSettings(
                     AsyncImage(
                         model = r.thumbnail, contentDescription = null, contentScale = ContentScale.Crop,
                         placeholder = painterResource(R.drawable.artist), error = painterResource(R.drawable.artist),
-                        modifier = Modifier.size(44.dp).clip(CircleShape),
+                        modifier = Modifier.size(44.dp).clip(CircleShape).clickable(enabled = !r.removed && !busy) { pictureFor = r },
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(r.name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -202,6 +211,9 @@ fun ChannelsSettings(
                         TextButton(onClick = { save(r, removed = false) }, enabled = !busy) { Text(stringResource(R.string.stalow_channels_restore)) }
                     } else {
                         CategoryDropdown(r.category, enabled = !busy) { c -> save(r, category = c) }
+                        IconButton(onClick = { pictureFor = r }, enabled = !busy) {
+                            Icon(painterResource(R.drawable.insert_photo), contentDescription = stringResource(R.string.stalow_picture))
+                        }
                         IconButton(onClick = { confirmDelete = r }, enabled = !busy) {
                             Icon(painterResource(R.drawable.delete), contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                         }
@@ -222,6 +234,13 @@ fun ChannelsSettings(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(android.R.string.cancel)) } },
         )
+    }
+
+    pictureFor?.let { r ->
+        PictureDialog(r, onDismiss = { pictureFor = null }) { url ->
+            pictureFor = null
+            save(r.copy(thumbnail = url))
+        }
     }
 
     if (showAdd) AddChannelDialog(
@@ -337,5 +356,77 @@ private fun AddChannelDialog(
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } },
+    )
+}
+
+/** Possible pictures for one channel / artist (its own pages, and a search by name); tap one to use it for everyone. */
+@Composable
+private fun PictureDialog(row: CatalogRow, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var q by remember { mutableStateOf(row.name) }
+    var pictures by remember { mutableStateOf<List<StalowAccount.Picture>?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf<String?>(null) }
+
+    fun load() {
+        if (loading) return
+        loading = true
+        scope.launch {
+            pictures = try { StalowAccount.pictures(row.id, q.trim()) } catch (e: Exception) {
+                context.toast(context.getString(R.string.stalow_failed, e.message ?: e.javaClass.simpleName)); pictures
+            }
+            loading = false
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.stalow_picture_for, row.name), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = q, onValueChange = { q = it }, singleLine = true,
+                    placeholder = { Text(stringResource(R.string.stalow_picture_search_hint)) },
+                    trailingIcon = { IconButton(onClick = { load() }) { Icon(painterResource(R.drawable.search), stringResource(R.string.stalow_channels_search)) } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { load() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 6.dp))
+                val list = pictures
+                if (list != null && list.isEmpty() && !loading) Text(stringResource(R.string.stalow_channels_no_results), modifier = Modifier.padding(top = 12.dp))
+                if (!list.isNullOrEmpty()) {
+                    Text(
+                        stringResource(R.string.stalow_picture_tap), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                    )
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 380.dp),
+                    ) {
+                        gridItems(list, key = { it.url }) { p ->
+                            val selected = chosen == p.url
+                            AsyncImage(
+                                model = p.url, contentDescription = p.from, contentScale = ContentScale.Crop,
+                                placeholder = painterResource(R.drawable.artist), error = painterResource(R.drawable.hide_image),
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(if (selected) 3.dp else 0.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                                    .clickable { chosen = p.url },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { chosen?.let(onPick) }, enabled = chosen != null) { Text(stringResource(R.string.stalow_picture_use)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
 }
