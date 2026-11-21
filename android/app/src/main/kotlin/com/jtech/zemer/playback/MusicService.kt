@@ -39,6 +39,7 @@ import androidx.media3.common.Player.STATE_IDLE
 import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
@@ -2309,6 +2310,19 @@ class MusicService :
     private fun stampCpn(url: String, mediaId: String): String =
         PlaybackNonceRegistry.appendCpn(url, watchTimeReporter.mediaCpnFor(VideoRendition.baseVideoId(mediaId)))
 
+    /**
+     * Stalow: a read served from the player cache stops at the cached chunk, like a network read
+     * (CHUNK_LENGTH). Unbounded, the cache source would carry on past the cached bytes to the network with
+     * the item's own uri — a bare id or `video:<id>`, not a web address — so the read failed there
+     * ("Malformed URL" for video, which ended video mode; "FileNotFoundException" for audio). Bounded, the
+     * player's next read comes back through the resolver, which finds the real stream address.
+     */
+    private fun cachedChunk(dataSpec: DataSpec): DataSpec =
+        dataSpec.subrange(
+            dataSpec.uriPositionOffset,
+            if (dataSpec.length >= 0) minOf(dataSpec.length, CHUNK_LENGTH) else CHUNK_LENGTH,
+        )
+
     private fun createDataSourceFactory(): DataSource.Factory {
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
             val mediaId = dataSpec.key ?: error("No media id")
@@ -2327,7 +2341,7 @@ class MusicService :
                 // position-0 purge exists for). Plain `video:<id>` stays the automatic pick.
                 val renditionItag = VideoRendition.renditionItag(mediaId)
                 if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
-                    return@Factory dataSpec
+                    return@Factory cachedChunk(dataSpec)
                 }
                 songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
                     return@Factory dataSpec.withUri(stampCpn(it.first, mediaId).toUri())
@@ -2383,7 +2397,7 @@ class MusicService :
             if (VideoRendition.isMergeAudioKey(mediaId)) {
                 val audioId = mediaId.removePrefix("videoaudio:")
                 if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
-                    return@Factory dataSpec
+                    return@Factory cachedChunk(dataSpec)
                 }
                 songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
                     return@Factory dataSpec.withUri(stampCpn(it.first, mediaId).toUri())
@@ -2424,13 +2438,12 @@ class MusicService :
                 return@Factory dataSpec.withUri(it.toUri())
             }
 
-            if (downloadCache.isCached(
-                    mediaId,
-                    dataSpec.position,
-                    if (dataSpec.length >= 0) dataSpec.length else 1
-                ) ||
-                playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)
-            ) {
+            val inDownloadCache = downloadCache.isCached(
+                mediaId,
+                dataSpec.position,
+                if (dataSpec.length >= 0) dataSpec.length else 1
+            )
+            if (inDownloadCache || playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
                 // Cached playback skips the stream resolution that records musicVideoType, so kick the
                 // on-demand probe NOW (deduped, one light call per unknown id per session) — the
                 // Song/Video toggle is then already decided by the time the player is expanded,
@@ -2438,7 +2451,7 @@ class MusicService :
                 // the fallback for items that start mid-span).
                 videoModeController.requestVideoAvailability(mediaId)
                 scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec
+                return@Factory if (inDownloadCache) dataSpec else cachedChunk(dataSpec)
             }
 
             songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
