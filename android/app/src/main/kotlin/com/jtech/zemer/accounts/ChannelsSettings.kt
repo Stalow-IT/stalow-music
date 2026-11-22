@@ -138,6 +138,7 @@ fun ChannelsSettings(
     var showAdd by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf<CatalogRow?>(null) }
     var pictureFor by remember { mutableStateOf<CatalogRow?>(null) }
+    var albumsFor by remember { mutableStateOf<CatalogRow?>(null) }
 
     fun save(row: CatalogRow, category: String = row.category, removed: Boolean = row.removed, toastRes: Int = R.string.stalow_channels_saved) {
         if (busy) return
@@ -211,6 +212,9 @@ fun ChannelsSettings(
                         TextButton(onClick = { save(r, removed = false) }, enabled = !busy) { Text(stringResource(R.string.stalow_channels_restore)) }
                     } else {
                         CategoryDropdown(r.category, enabled = !busy) { c -> save(r, category = c) }
+                        if (r.category == CatalogOverrides.MUSIC) IconButton(onClick = { albumsFor = r }, enabled = !busy) {
+                            Icon(painterResource(R.drawable.library_music), contentDescription = stringResource(R.string.stalow_albums))
+                        }
                         IconButton(onClick = { pictureFor = r }, enabled = !busy) {
                             Icon(painterResource(R.drawable.insert_photo), contentDescription = stringResource(R.string.stalow_picture))
                         }
@@ -235,6 +239,8 @@ fun ChannelsSettings(
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
+
+    albumsFor?.let { r -> AlbumsDialog(r) { albumsFor = null } }
 
     pictureFor?.let { r ->
         PictureDialog(r, onDismiss = { pictureFor = null }) { url ->
@@ -428,5 +434,117 @@ private fun PictureDialog(row: CatalogRow, onDismiss: () -> Unit, onPick: (Strin
             Button(onClick = { chosen?.let(onPick) }, enabled = chosen != null) { Text(stringResource(R.string.stalow_picture_use)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
+    )
+}
+
+/**
+ * An artist's albums and singles on YouTube Music, and the albums attached from Google Drive to fill the gaps:
+ * paste a shared Drive folder of the missing album, give its name and year, and it shows on the artist page.
+ */
+@Composable
+private fun AlbumsDialog(row: CatalogRow, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var albums by remember { mutableStateOf<List<DriveLibrary.Album>?>(null) }
+    var drive by remember { mutableStateOf<List<DriveLibrary.Item>>(emptyList()) }
+    var busy by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+    var link by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+
+    fun run(block: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                block()
+                val (a, d) = DriveLibrary.artistAlbums(row.id)
+                albums = a; drive = d
+            } catch (e: Exception) {
+                context.toast(context.getString(R.string.stalow_failed, e.message ?: e.javaClass.simpleName), long = true)
+            }
+            busy = false
+        }
+    }
+    LaunchedEffect(Unit) { run {} }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.stalow_albums_of, row.name), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 520.dp)) {
+                if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 8.dp)) }
+                item {
+                    Text(stringResource(R.string.stalow_albums_drive), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                }
+                items(drive, key = { "d" + it.id }) { d ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(if (d.removed) 0.5f else 1f)) {
+                        Icon(painterResource(R.drawable.library_music), null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(d.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOfNotNull(d.year?.toString(), stringResource(R.string.stalow_drive_files, d.files.size)).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (d.removed) TextButton(onClick = { run { DriveLibrary.set(d.id, removed = false) } }, enabled = !busy) { Text(stringResource(R.string.stalow_channels_restore)) }
+                        else IconButton(onClick = { run { DriveLibrary.set(d.id, removed = true) } }, enabled = !busy) {
+                            Icon(painterResource(R.drawable.delete), stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+                item {
+                    if (!adding) {
+                        TextButton(onClick = { adding = true }) {
+                            Icon(painterResource(R.drawable.add), null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.stalow_albums_add))
+                        }
+                    } else {
+                        Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(stringResource(R.string.stalow_drive_add_explain), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            OutlinedTextField(link, { link = it }, singleLine = true, label = { Text(stringResource(R.string.stalow_drive_link)) }, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(name, { name = it }, singleLine = true, label = { Text(stringResource(R.string.stalow_albums_name)) }, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(year, { year = it.filter(Char::isDigit).take(4) }, singleLine = true, label = { Text(stringResource(R.string.stalow_albums_year)) }, modifier = Modifier.fillMaxWidth())
+                            Button(
+                                onClick = {
+                                    run {
+                                        DriveLibrary.add(link, CatalogOverrides.MUSIC, name, row.id, year.toIntOrNull())
+                                        link = ""; name = ""; year = ""; adding = false
+                                        context.toast(R.string.stalow_channels_added)
+                                    }
+                                },
+                                enabled = !busy && link.isNotBlank(),
+                            ) { Text(stringResource(R.string.stalow_add)) }
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        stringResource(R.string.stalow_albums_youtube, albums?.size ?: 0),
+                        style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 10.dp),
+                    )
+                }
+                items(albums.orEmpty(), key = { "y" + it.browseId }) { a ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        AsyncImage(
+                            model = a.thumbnail.ifBlank { null }, contentDescription = null, contentScale = ContentScale.Crop,
+                            placeholder = painterResource(R.drawable.album), error = painterResource(R.drawable.album),
+                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(a.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOfNotNull(a.year?.toString(), stringResource(if (a.kind == "single") R.string.stalow_single else R.string.stalow_album)).joinToString(" · "),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } },
     )
 }

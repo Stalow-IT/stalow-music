@@ -31,6 +31,13 @@ function buildCatalog() {
   catalog = new Catalog(list, { allowFemale: s.allowFemale, blockPodcasts: s.blockPodcasts, channels });
 }
 const accountState = () => ({ ...accounts.state, isAdmin: accounts.isAdmin });
+/** The Google Drive folders and files the admins added, kept on the PC so they show offline too. */
+let driveCache = [];
+async function refreshDrive() {
+  if (accounts.state.status !== 'approved') return;
+  const items = (await accounts.call('drive.list')).items || [];
+  if (JSON.stringify(items) !== JSON.stringify(driveCache)) { driveCache = items; writeRaw(dataFile('stalow-drive'), items); send('drive-changed', true); }
+}
 /** Looks again at this PC's approval and the admins' changes; tells the window when either changed. */
 async function checkAccount() {
   const before = JSON.stringify(accounts.state);
@@ -50,7 +57,7 @@ const dataFile = (name) => path.join(app.getPath('userData'), `${name}.json`);
 const RELEASES_URL = 'https://dzrnortzhpnoussbeedv.supabase.co/functions/v1/stalow-releases';
 let releasesCache = null;
 const DATA = { history: 'history', searchHistory: 'search-history', likes: 'likes', plays: 'plays' };
-const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(x.id) ? {
+const cleanSong = (x) => (x && typeof x.id === 'string' && /^(?:[\w-]{6,20}|drive:[\w-]{10,100})$/.test(x.id) ? {
   type: 'song', id: x.id, title: String(x.title || '').slice(0, 300),
   artists: (Array.isArray(x.artists) ? x.artists : []).filter((a) => a && typeof a.name === 'string').slice(0, 10).map((a) => ({ id: typeof a.id === 'string' ? a.id : null, name: a.name.slice(0, 200) })),
   album: x.album && typeof x.album.title === 'string' ? { id: typeof x.album.id === 'string' ? x.album.id : '', title: x.album.title.slice(0, 300) } : null,
@@ -132,6 +139,18 @@ const handlers = {
   'admin:search': async (q) => accounts.search(String(q || '').slice(0, 100)),
   'admin:pictures': async ({ id, q } = {}) => accounts.pictures(String(id || ''), String(q || '').slice(0, 100)),
   'admin:rows': async () => catalogRows(baseList, baseChannels, accounts.catalog.entries),
+  // Google Drive (Settings > Google Drive): the shared list for everyone; admins add and change it
+  'drive:list': async () => { refreshDrive().catch(() => {}); return driveCache; },
+  'admin:driveAll': async () => (await accounts.call('drive.all')).items || [],
+  'admin:driveAdd': async (a = {}) => {
+    const r = await accounts.call('drive.add', { link: String(a.link || '').slice(0, 500), category: String(a.category || ''), title: String(a.title || '').slice(0, 200), artistId: a.artistId || undefined, year: a.year || undefined });
+    await refreshDrive(); return r.item;
+  },
+  'admin:driveSet': async (a = {}) => {
+    const r = await accounts.call('drive.set', { id: String(a.id || ''), title: a.title, category: a.category, removed: a.removed, refresh: a.refresh === true || undefined });
+    await refreshDrive(); return r.item;
+  },
+  'admin:albums': async (id) => accounts.call('catalog.albums', { id: String(id || '') }),
   'admin:set': async (entry) => {
     const e = entry || {};
     await accounts.setEntry({ id: String(e.id || ''), name: String(e.name || '').slice(0, 200), thumbnail: String(e.thumbnail || ''), category: String(e.category || ''), removed: e.removed === true });
@@ -411,8 +430,9 @@ app.whenReady().then(async () => {
   baseList = loadArtists();
   baseChannels = loadChannels();
   buildCatalog();
-  setTimeout(() => checkAccount().catch(() => {}), 1500);
-  setInterval(() => checkAccount().catch(() => {}), 10 * 60 * 1000);
+  driveCache = readRaw(dataFile('stalow-drive'), []);
+  setTimeout(() => checkAccount().then(() => refreshDrive()).catch(() => {}), 1500);
+  setInterval(() => checkAccount().then(() => refreshDrive()).catch(() => {}), 10 * 60 * 1000);
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
     else if (ev.state === 'paused' || ev.state === 'ended') updateThumbar(false);

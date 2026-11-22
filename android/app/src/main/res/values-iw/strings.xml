@@ -370,4 +370,27 @@
     <string name="stalow_picture_search_hint">חיפוש לפי שם אחר</string>
     <string name="stalow_picture_tap">בחרו תמונה ולחצו על שימוש בתמונה. כולם יראו אותה.</string>
     <string name="stalow_picture_use">שימוש בתמונה</string>
+    <string name="stalow_drive">Google Drive</string>
+    <string name="stalow_drive_files">%1$d קבצים</string>
+    <string name="stalow_drive_missing">תיקיית הדרייב הזו כבר לא ברשימה.</string>
+    <string name="stalow_drive_play_all">הפעלת הכל</string>
+    <string name="stalow_drive_find">חיפוש קובץ</string>
+    <string name="stalow_drive_explain">תיקיות וקבצים מ-Google Drive שכולם יכולים להשמיע. קודם שתפו אותם בדרייב כ"כל מי שיש לו את הקישור". קבצים חדשים בתיקייה משותפת מופיעים לבד.</string>
+    <string name="stalow_drive_add">הוספה מ-Google Drive</string>
+    <string name="stalow_drive_add_explain">הדביקו קישור לתיקייה או לקובץ ששותפו כ"כל מי שיש לו את הקישור".</string>
+    <string name="stalow_drive_link">קישור לדרייב</string>
+    <string name="stalow_drive_name">שם (לא חובה)</string>
+    <string name="stalow_drive_folder">תיקייה</string>
+    <string name="stalow_drive_file">קובץ</string>
+    <string name="stalow_drive_refresh">חיפוש קבצים חדשים</string>
+    <string name="stalow_drive_refreshed">מחפש קבצים חדשים</string>
+    <string name="stalow_albums">אלבומים</string>
+    <string name="stalow_albums_of">האלבומים של %1$s</string>
+    <string name="stalow_albums_drive">מ-Google Drive</string>
+    <string name="stalow_albums_add">הוספת אלבום חסר מ-Google Drive</string>
+    <string name="stalow_albums_name">שם האלבום</string>
+    <string name="stalow_albums_year">שנה (לא חובה)</string>
+    <string name="stalow_albums_youtube">ב-YouTube Music (%1$d)</string>
+    <string name="stalow_single">סינגל</string>
+    <string name="stalow_album">אלבום</string>
 </resources>

@@ -595,4 +595,27 @@
     <string name="stalow_picture_search_hint">Search by another name</string>
     <string name="stalow_picture_tap">Tap a picture, then Use this picture. Everyone sees it.</string>
     <string name="stalow_picture_use">Use this picture</string>
+    <string name="stalow_drive">Google Drive</string>
+    <string name="stalow_drive_files">%1$d files</string>
+    <string name="stalow_drive_missing">This Drive folder is no longer in the list.</string>
+    <string name="stalow_drive_play_all">Play all</string>
+    <string name="stalow_drive_find">Find a file</string>
+    <string name="stalow_drive_explain">Folders and files from Google Drive that everyone can play. Share them in Drive as "Anyone with the link" first. New files in a shared folder show up by themselves.</string>
+    <string name="stalow_drive_add">Add from Google Drive</string>
+    <string name="stalow_drive_add_explain">Paste the link of a folder or file shared as "Anyone with the link".</string>
+    <string name="stalow_drive_link">Drive link</string>
+    <string name="stalow_drive_name">Name (optional)</string>
+    <string name="stalow_drive_folder">Folder</string>
+    <string name="stalow_drive_file">File</string>
+    <string name="stalow_drive_refresh">Look for new files</string>
+    <string name="stalow_drive_refreshed">Looking for new files</string>
+    <string name="stalow_albums">Albums</string>
+    <string name="stalow_albums_of">Albums of %1$s</string>
+    <string name="stalow_albums_drive">From Google Drive</string>
+    <string name="stalow_albums_add">Add a missing album from Google Drive</string>
+    <string name="stalow_albums_name">Album name</string>
+    <string name="stalow_albums_year">Year (optional)</string>
+    <string name="stalow_albums_youtube">On YouTube Music (%1$d)</string>
+    <string name="stalow_single">Single</string>
+    <string name="stalow_album">Album</string>
 </resources>

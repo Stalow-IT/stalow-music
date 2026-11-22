@@ -62,6 +62,7 @@ object StalowAccount {
             id = prefs.getString("id", "") ?: "",
         )
         CatalogOverrides.load(File(context.filesDir, "stalow_catalog.json"))
+        DriveLibrary.load(File(context.filesDir, "stalow_drive.json"))
     }
 
     private fun newKey(): String {

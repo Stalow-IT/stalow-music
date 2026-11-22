@@ -1,5 +1,5 @@
 'use strict';
-/* global stalow, el, t, icon, img, views, go, page, group, row, PAGES, rerender, currentView */
+/* global stalow, el, t, icon, img, views, go, page, group, row, PAGES, rerender, currentView, loadDrive */
 // Accounts: nothing opens until an admin approves this PC (same accounts as the phone app). Admins also get two
 // settings pages: Users (approve, admin or not, block) and Channels & artists (find, move, remove, add).
 
@@ -56,6 +56,7 @@ stalow.onAccount((st) => {
   if (st.status !== 'approved' && !document.getElementById('gate')) accountGate();
 });
 stalow.onCatalogChanged(() => { if (typeof rerender === 'function') rerender(); });
+stalow.onDriveChanged(() => { loadDrive().then(() => { if (typeof rerender === 'function') rerender(); }); });
 
 // ---------- Settings: the two admin sections ----------
 const showSettingsList = views.settings;
@@ -66,7 +67,7 @@ views.settings = async () => {
   const entry = (id, ic, title, desc) => el('button', { class: 'item category', onclick: () => go('settingsPage', id) },
     el('div', { class: 'grow' }, el('span', { class: 'icon' }, icon(ic)), el('div', {}, el('div', { class: 'it', text: t(title) }), el('div', { class: 'id', text: t(desc) }))),
     icon('chevron'));
-  list.prepend(entry('users', 'account', 'admin_users', 'admin_users_desc'), entry('channels', 'artist', 'admin_channels', 'admin_channels_desc'));
+  list.prepend(entry('users', 'account', 'admin_users', 'admin_users_desc'), entry('channels', 'artist', 'admin_channels', 'admin_channels_desc'), entry('drive', 'queue', 'google_drive', 'drive_admin_desc'));
 };
 
 const CAT_LABEL = { music: 'cat_music', podcasts: 'podcasts', shiurim: 'shiurim', videos: 'videos' };
@@ -131,6 +132,7 @@ PAGES.channels = async () => {
       const ctl = r.removed
         ? el('button', { class: 'btn secondary', text: t('admin_restore'), onclick: (e) => save({ ...r, removed: false }, e.target) })
         : [categorySelect(r.category, (c, s) => save({ ...r, category: c }, s)),
+          r.category === 'music' ? el('button', { class: 'btn secondary', text: t('albums'), onclick: () => albumsDialog(r) }) : '',
           el('button', { class: 'btn secondary', text: t('admin_picture'), onclick: () => pictureDialog(r, save) }),
           el('button', { class: 'btn danger', text: t('admin_delete'), onclick: (e) => { if (confirm(t('admin_delete_q', r.name))) save({ ...r, removed: true }, e.target); } })];
       return el('div', { class: 'item admin-row' + (r.removed ? ' removed' : '') },
@@ -213,6 +215,72 @@ function pictureDialog(r, save) {
     el('div', { class: 'admin-top' }, q, find),
     el('div', { class: 'muted', text: t('admin_picture_tap') }), grid,
     el('div', { class: 'admin-top end' }, use));
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  load();
+}
+
+// ---------- Google Drive (admins) ----------
+function driveAddForm({ artistId = null, onDone } = {}) {
+  const link = el('input', { class: 'searchbox', type: 'url', placeholder: t('drive_link'), 'aria-label': t('drive_link') });
+  const name = el('input', { class: 'searchbox', placeholder: t(artistId ? 'album_name' : 'drive_name'), 'aria-label': t('drive_name') });
+  const year = artistId ? el('input', { class: 'searchbox narrow', inputmode: 'numeric', maxlength: '4', placeholder: t('album_year'), 'aria-label': t('album_year') }) : null;
+  const cat = artistId ? null : categorySelect('music', () => {});
+  const msg = el('div', { class: 'muted' });
+  const add = el('button', { class: 'btn', text: t('admin_add_one'), onclick: async () => {
+    if (!link.value.trim()) return;
+    add.disabled = true; msg.textContent = t('loading');
+    try {
+      await stalow.adminDriveAdd({ link: link.value.trim(), title: name.value.trim(), category: cat ? cat.value : 'music', artistId, year: year ? Number(year.value) || undefined : undefined });
+      link.value = ''; name.value = ''; if (year) year.value = '';
+      msg.textContent = t('admin_added');
+      if (onDone) onDone();
+    } catch (e) { msg.textContent = t('admin_failed', e.message); }
+    add.disabled = false;
+  } });
+  return el('div', { class: 'drive-form' }, el('div', { class: 'muted', text: t('drive_add_explain') }), link, el('div', { class: 'admin-top' }, name, year, cat, add), msg);
+}
+
+PAGES.drive = async () => {
+  page('google_drive', group('', row(t('loading'), '')));
+  let items;
+  try { items = await stalow.adminDriveAll(); } catch (e) { page('google_drive', group('', row(t('admin_failed', e.message), ''))); return; }
+  const act = (fn) => async (ev) => { ev.target.disabled = true; try { await fn(); } catch (e) { failed(e); } PAGES.drive(); };
+  page('google_drive',
+    group(t('drive_add'), el('div', { class: 'item block' }, driveAddForm({ onDone: () => PAGES.drive() }))),
+    group(`${t('google_drive')} (${items.length})`, items.length ? items.map((d) => el('div', { class: 'item admin-row' + (d.removed ? ' removed' : '') },
+      el('div', { class: 'grow' }, el('div', {}, el('div', { class: 'it', text: d.title }),
+        el('div', { class: 'id', text: [t(d.kind === 'folder' ? 'drive_folder' : 'drive_file'), t('drive_files', d.files.length), d.artistId ? t('albums') : ''].filter(Boolean).join(' · ') }))),
+      el('div', { class: 'ctl' }, d.removed
+        ? el('button', { class: 'btn secondary', text: t('admin_restore'), onclick: act(() => stalow.adminDriveSet({ id: d.id, removed: false })) })
+        : [d.artistId ? '' : categorySelect(d.category, (c) => act(() => stalow.adminDriveSet({ id: d.id, category: c }))({ target: {} })),
+          d.kind === 'folder' ? el('button', { class: 'btn secondary', text: t('drive_refresh'), onclick: act(() => stalow.adminDriveSet({ id: d.id, refresh: true })) }) : '',
+          el('button', { class: 'btn danger', text: t('admin_delete'), onclick: (ev) => { if (confirm(t('admin_delete_q', d.title))) act(() => stalow.adminDriveSet({ id: d.id, removed: true }))(ev); } })])))
+      : row(t('drive_none'), '')));
+};
+
+/** An artist's albums and singles on YouTube Music, and the missing ones added from Google Drive. */
+function albumsDialog(r) {
+  const body = el('div', { class: 'admin-results' }, el('div', { class: 'muted', text: t('loading') }));
+  const load = async () => {
+    try {
+      const { albums, drive } = await stalow.adminAlbums(r.id);
+      body.replaceChildren(
+        el('h3', { text: t('from_google_drive') }),
+        ...drive.map((d) => el('div', { class: 'item admin-row' + (d.removed ? ' removed' : '') },
+          el('div', { class: 'grow' }, el('div', { class: 'ph' }, icon('queue')), el('div', {}, el('div', { class: 'it', text: d.title }), el('div', { class: 'id', text: [d.year, t('drive_files', d.files.length)].filter(Boolean).join(' · ') }))),
+          el('div', { class: 'ctl' }, el('button', { class: 'btn ' + (d.removed ? 'secondary' : 'danger'), text: t(d.removed ? 'admin_restore' : 'admin_delete'),
+            onclick: async (ev) => { ev.target.disabled = true; try { await stalow.adminDriveSet({ id: d.id, removed: !d.removed }); } catch (e) { failed(e); } load(); } })))),
+        el('div', { class: 'item block' }, el('div', { class: 'it', text: t('album_add_missing') }), driveAddForm({ artistId: r.id, onDone: load })),
+        el('h3', { text: t('albums_on_ytm', albums.length) }),
+        ...albums.map((a) => el('div', { class: 'item admin-row' },
+          el('div', { class: 'grow' }, img(a.thumbnail, a.title), el('div', {}, el('div', { class: 'it', text: a.title }), el('div', { class: 'id', text: [a.year, t(a.kind === 'single' ? 'single' : 'album')].filter(Boolean).join(' · ') }))))));
+    } catch (e) { body.replaceChildren(el('div', { class: 'muted', text: t('admin_failed', e.message) })); }
+  };
+  const dlg = el('dialog', { class: 'admin-dialog' },
+    el('div', { class: 'admin-top' }, el('h2', { text: t('albums_of', r.name) }), el('button', { class: 'icon-btn', 'aria-label': t('close'), onclick: () => dlg.close() }, icon('close'))),
+    body);
   dlg.addEventListener('close', () => dlg.remove());
   document.body.append(dlg);
   dlg.showModal();

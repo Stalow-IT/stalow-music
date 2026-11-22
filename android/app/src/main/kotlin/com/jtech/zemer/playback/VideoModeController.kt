@@ -605,6 +605,7 @@ class VideoModeController(
      * authenticated `next()` probe found none; this records the item's OWN type only.)
      */
     fun requestVideoAvailability(mediaId: String) {
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(mediaId)) return // a Drive file is not on YouTube
         // Callable from any thread (the expanded player AND the data-source resolver) — all state is
         // touched on [scope] (main).
         scope.launch {

@@ -485,6 +485,12 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/accounts") {
         com.jtech.zemer.accounts.AccountsSettings(navController, scrollBehavior)
     }
+    composable("settings/drive") {
+        com.jtech.zemer.accounts.DriveSettings(navController, scrollBehavior)
+    }
+    composable("drive/{id}") { entry ->
+        com.jtech.zemer.accounts.DriveFolderScreen(navController, scrollBehavior, entry.arguments?.getString("id").orEmpty())
+    }
     composable("settings/channels") {
         com.jtech.zemer.accounts.ChannelsSettings(navController, scrollBehavior)
     }

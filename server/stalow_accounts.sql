@@ -37,3 +37,20 @@ alter table public.stalow_accounts enable row level security;
 alter table public.stalow_catalog enable row level security;
 alter table public.stalow_account_state enable row level security;
 revoke all on public.stalow_accounts, public.stalow_catalog, public.stalow_account_state from anon, authenticated;
+
+-- Google Drive folders and files the admins add (migrations stalow_music_drive + stalow_drive_artist)
+create table public.stalow_drive (
+  drive_id   text primary key check (drive_id ~ '^[A-Za-z0-9_-]{10,100}$'),
+  kind       text not null check (kind in ('folder', 'file')),
+  title      text not null default '',
+  category   text not null default 'music' check (category in ('music', 'podcasts', 'shiurim', 'videos')),
+  removed    boolean not null default false,
+  files      jsonb not null default '[]'::jsonb,   -- [{id, name, type: audio|video}], read from the shared folder
+  listed_at  timestamptz,
+  added_by   uuid,
+  created_at timestamptz not null default now(),
+  artist_id  text check (artist_id is null or artist_id ~ '^UC[A-Za-z0-9_-]{10,40}$'), -- an album of this artist
+  year       int
+);
+alter table public.stalow_drive enable row level security;
+revoke all on public.stalow_drive from anon, authenticated;

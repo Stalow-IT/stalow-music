@@ -182,6 +182,8 @@ fun HomeScreen(
     val featuredPlaylists = homeUiState.featuredPlaylists
     val forgottenFavorites = homeUiState.forgottenFavorites
     val keepListening = homeUiState.keepListening
+    val driveItems by com.jtech.zemer.accounts.DriveLibrary.items.collectAsState()
+    LaunchedEffect(Unit) { com.jtech.zemer.accounts.DriveLibrary.refresh() }
     val mostPlayed by remember {
         database.mostPlayedSongs(
             fromTimeStamp = java.time.LocalDateTime.now().minusDays(30).toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
@@ -722,6 +724,28 @@ fun HomeScreen(
                         ) {
                             items(items = mostPlayed, key = { "mp_" + it.id }, contentType = { "local_item" }) {
                                 localGridItem(it)
+                            }
+                        }
+                    }
+                }
+
+                // Stalow: Google Drive folders and files the admins added; a tap opens the folder.
+                // (albums attached to an artist show on that artist's page instead)
+                driveItems.filter { it.artistId == null }.takeIf { it.isNotEmpty() }?.let { drive ->
+                    item(key = "drive_title", contentType = "header") {
+                        NavigationTitle(
+                            title = stringResource(R.string.stalow_drive),
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+                    item(key = "drive_list", contentType = "drive") {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            contentPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).animateItem(),
+                        ) {
+                            items(drive, key = { "drive_" + it.id }) { d ->
+                                com.jtech.zemer.accounts.DriveCard(d) { navController.navigate("drive/${d.id}") }
                             }
                         }
                     }

@@ -686,6 +686,7 @@ class MainActivity : ComponentActivity() {
                             com.jtech.zemer.accounts.StalowAccount.refresh()
                             if (com.jtech.zemer.accounts.StalowAccount.refreshCatalog()) syncUtils.resyncCatalog()
                             else syncUtils.applyCatalogPictures()
+                            com.jtech.zemer.accounts.DriveLibrary.refresh()
                         }
                     }
                     check()

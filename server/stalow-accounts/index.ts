@@ -5,6 +5,7 @@
 //   accounts.list  accounts.decide {id, status?, role?}            (admins)
 //   catalog.get                                                     (approved accounts)
 //   catalog.set {entry:{id,name,thumbnail,category,removed}}  catalog.search {q}  catalog.images {id, q}   (admins)
+//   drive.list (approved)   drive.all  drive.add {link, category, title?, artistId?, year?}  drive.set {id, title?, category?, removed?, refresh?, artistId?, year?}  catalog.albums {id}   (admins)
 // Deployed as the Supabase edge function "stalow-accounts" (verify_jwt off) in the it-manager project.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -186,6 +187,137 @@ async function images(id: string, q: string) {
   return found;
 }
 
+// ---- Google Drive: shared ("anyone with the link") folders and files the admins add ----
+const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|wma|amr|mka)$/i;
+const VIDEO_EXT = /\.(mp4|m4v|webm|mkv|mov|3gp|avi|mpeg|mpg|ts)$/i;
+const unhtml = (s: string) => s.replace(/&amp;/g, "&").replace(/&#39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(Number(n))).trim();
+type DriveFile = { id: string; name: string; type: "audio" | "video" };
+
+/** A Drive link (or bare id) -> {id, kind}. */
+function parseDriveLink(link: string): { id: string; kind: "folder" | "file" } | null {
+  const t = link.trim();
+  let m = t.match(/\/folders\/([A-Za-z0-9_-]{10,100})/) || t.match(/folderview\?(?:[^#]*&)?id=([A-Za-z0-9_-]{10,100})/);
+  if (m) return { id: m[1], kind: "folder" };
+  m = t.match(/\/file\/d\/([A-Za-z0-9_-]{10,100})/) || t.match(/[?&]id=([A-Za-z0-9_-]{10,100})/);
+  if (m) return { id: m[1], kind: "file" };
+  if (/^[A-Za-z0-9_-]{25,100}$/.test(t)) return { id: t, kind: "folder" };
+  return null;
+}
+
+const DRIVE_HEADERS = { "User-Agent": YT_HEADERS["User-Agent"], "Accept-Language": "en-US,en;q=0.9" };
+
+/** The files in a shared folder (and its sub-folders, two levels down), from Drive's public folder view. */
+async function listDriveFolder(folderId: string, depth = 0, seen = new Set<string>()): Promise<{ title: string; files: DriveFile[] }> {
+  if (seen.has(folderId) || seen.size > 40) return { title: "", files: [] };
+  seen.add(folderId);
+  const res = await fetch(`https://drive.google.com/embeddedfolderview?id=${folderId}`, { headers: DRIVE_HEADERS });
+  if (!res.ok) throw new Error(res.status === 404 ? "folder not found or not shared" : `Drive answered ${res.status}`);
+  const html = await res.text();
+  if (!/flip-entry|flip-entries/.test(html)) throw new Error("folder not shared with \"Anyone with the link\"");
+  const title = unhtml((html.match(/<title>([^<]*)<\/title>/) || [])[1] || "");
+  const files: DriveFile[] = [];
+  const subfolders: { id: string; name: string }[] = [];
+  for (const chunk of html.split(/class="flip-entry"/).slice(1)) {
+    const id = (chunk.match(/id="entry-([A-Za-z0-9_-]+)"/) || [])[1];
+    const href = (chunk.match(/href="([^"]+)"/) || [])[1] || "";
+    const name = unhtml((chunk.match(/flip-entry-title">([^<]*)</) || [])[1] || "");
+    if (!id || !name) continue;
+    if (/\/folders\//.test(href)) { subfolders.push({ id, name }); continue; }
+    const type = AUDIO_EXT.test(name) ? "audio" : VIDEO_EXT.test(name) ? "video" : null;
+    if (type) files.push({ id, name, type });
+  }
+  if (depth < 2) {
+    for (const sub of subfolders.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
+      try {
+        const inner = await listDriveFolder(sub.id, depth + 1, seen);
+        files.push(...inner.files.map((f) => ({ ...f, name: `${sub.name} / ${f.name}` })));
+      } catch { /* a sub-folder that can't be read is skipped */ }
+      if (files.length > 1000) break;
+    }
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  return { title, files: files.slice(0, 1000) };
+}
+
+/** A shared single file's name (its page title), or an error when it is not shared. */
+async function driveFileName(fileId: string): Promise<string> {
+  const res = await fetch(`https://drive.google.com/file/d/${fileId}/view`, { headers: DRIVE_HEADERS, redirect: "manual" });
+  if (res.status >= 300 && res.status < 400) throw new Error("file not shared with \"Anyone with the link\"");
+  if (!res.ok) throw new Error(res.status === 404 ? "file not found" : `Drive answered ${res.status}`);
+  const title = unhtml(((await res.text()).match(/<title>([^<]*)<\/title>/) || [])[1] || "").replace(/\s*-\s*Google Drive\s*$/i, "");
+  if (!title || /^Google Drive/i.test(title)) throw new Error("file not shared with \"Anyone with the link\"");
+  return title;
+}
+
+const driveOut = (r: any) => ({ id: r.drive_id, kind: r.kind, title: r.title, category: r.category, removed: r.removed, files: r.files || [], listedAt: r.listed_at, artistId: r.artist_id || null, year: r.year || null });
+const ARTIST_ID = /^UC[A-Za-z0-9_-]{10,40}$/;
+
+// ---- An artist's albums and singles on YouTube Music (Settings > Channels & artists > Albums) ----
+type Album = { browseId: string; title: string; year: number | null; kind: string; thumbnail: string };
+async function ytmBrowse(body: Record<string, unknown>, visitorData?: string) {
+  const res = await fetch("https://music.youtube.com/youtubei/v1/browse?prettyPrint=false", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://music.youtube.com", Referer: "https://music.youtube.com/", "User-Agent": YT_HEADERS["User-Agent"], ...(visitorData ? { "X-Goog-Visitor-Id": visitorData } : {}) },
+    body: JSON.stringify({ context: { client: { ...CLIENT, ...(visitorData ? { visitorData } : {}) } }, ...body }),
+  });
+  if (!res.ok) throw new Error(`YouTube Music answered ${res.status}`);
+  return await res.json();
+}
+function albumsIn(x: any, kind: string, out: Map<string, Album>) {
+  (function walk(n: any) {
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (!n || typeof n !== "object") return;
+    const r = n.musicTwoRowItemRenderer;
+    if (r) {
+      const be = r.navigationEndpoint?.browseEndpoint;
+      if (be?.browseId?.startsWith("MPRE") && !out.has(be.browseId)) {
+        const sub = (r.subtitle?.runs || []).map((a: any) => a.text);
+        const t = r.thumbnailRenderer?.musicThumbnailRenderer?.thumbnail?.thumbnails || [];
+        out.set(be.browseId, {
+          browseId: be.browseId, title: (r.title?.runs || []).map((a: any) => a.text).join(""),
+          year: Number(sub.find((s: string) => /^\d{4}$/.test(s))) || null,
+          kind: /single|ep/i.test(sub[0] || "") ? "single" : kind,
+          thumbnail: t.length ? t[t.length - 1].url : "",
+        });
+      }
+      return;
+    }
+    for (const k in n) walk(n[k]);
+  })(x);
+}
+async function artistAlbums(id: string): Promise<Album[]> {
+  const page = await ytmBrowse({ browseId: id });
+  const visitorData = page?.responseContext?.visitorData;
+  const out = new Map<string, Album>();
+  const shelves = page?.contents?.singleColumnBrowseResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.sectionListRenderer?.contents || [];
+  for (const c of shelves) {
+    const sh = c.musicCarouselShelfRenderer; if (!sh) continue;
+    const head = sh.header?.musicCarouselShelfBasicHeaderRenderer;
+    const name = (head?.title?.runs || []).map((a: any) => a.text).join("").toLowerCase();
+    if (!/album|single|ep/.test(name)) continue;
+    const kind = /single|ep/.test(name) ? "single" : "album";
+    // the shelf's "More" opens the whole list
+    const more = head?.moreContentButton?.buttonRenderer?.navigationEndpoint?.browseEndpoint || head?.title?.runs?.[0]?.navigationEndpoint?.browseEndpoint;
+    if (more?.browseId) {
+      try { albumsIn(await ytmBrowse({ browseId: more.browseId, ...(more.params ? { params: more.params } : {}) }, visitorData), kind, out); } catch { /* fall back to the shelf */ }
+    }
+    albumsIn(sh.contents, kind, out);
+  }
+  return [...out.values()].sort((a, b) => (b.year || 0) - (a.year || 0));
+}
+
+/** Folders are read again when their copy is older than half an hour (new files show up by themselves). */
+async function refreshDriveFolders(rows: any[]) {
+  const stale = rows.filter((r) => r.kind === "folder" && !r.removed && (!r.listed_at || Date.now() - Date.parse(r.listed_at) > 30 * 60 * 1000));
+  await Promise.all(stale.slice(0, 10).map(async (r) => {
+    try {
+      const { files } = await listDriveFolder(r.drive_id);
+      r.files = files; r.listed_at = new Date().toISOString();
+      await db.from("stalow_drive").update({ files, listed_at: r.listed_at }).eq("drive_id", r.drive_id);
+    } catch { /* keep the last copy */ }
+  }));
+}
+
 async function bumpVersion() {
   const { data } = await db.from("stalow_account_state").select("catalog_version").eq("id", 1).single();
   await db.from("stalow_account_state").update({ catalog_version: (data?.catalog_version || 1) + 1 }).eq("id", 1);
@@ -235,6 +367,14 @@ Deno.serve(async (req) => {
       return json({ version: st?.catalog_version || 1, entries: (entries || []).map((e: any) => ({ id: e.entry_id, name: e.name, thumbnail: e.thumbnail, category: e.category, removed: e.removed })) });
     }
 
+    if (b.action === "drive.list") {
+      if (me.status !== "approved") return json({ error: "not approved" }, 403);
+      const { data } = await db.from("stalow_drive").select("*").eq("removed", false).order("created_at", { ascending: true });
+      const rows = data || [];
+      await refreshDriveFolders(rows);
+      return json({ items: rows.map(driveOut) });
+    }
+
     // ---- admins only from here ----
     if (!isAdmin(me)) return json({ error: "admins only" }, 403);
 
@@ -263,6 +403,63 @@ Deno.serve(async (req) => {
     if (b.action === "catalog.images") {
       const id = typeof b.id === "string" ? b.id : "";
       return json({ images: await images(id, clean(b.q, 100)) });
+    }
+
+    if (b.action === "catalog.albums") {
+      const id = typeof b.id === "string" && ARTIST_ID.test(b.id) ? b.id : "";
+      if (!id) return json({ error: "bad artist" }, 400);
+      const [albums, { data }] = await Promise.all([
+        artistAlbums(id).catch(() => [] as Album[]),
+        db.from("stalow_drive").select("*").eq("artist_id", id).order("created_at", { ascending: true }),
+      ]);
+      return json({ albums, drive: (data || []).map(driveOut) });
+    }
+
+    if (b.action === "drive.all") {
+      const { data } = await db.from("stalow_drive").select("*").order("created_at", { ascending: true });
+      return json({ items: (data || []).map(driveOut) });
+    }
+
+    if (b.action === "drive.add") {
+      const parsed = parseDriveLink(clean(b.link, 500));
+      if (!parsed) return json({ error: "not a Google Drive link" }, 400);
+      if (!CATEGORIES.has(b.category)) return json({ error: "choose a section" }, 400);
+      let title = clean(b.title, 200), files: DriveFile[] = [];
+      try {
+        if (parsed.kind === "folder") {
+          const listed = await listDriveFolder(parsed.id);
+          files = listed.files;
+          if (!files.length) return json({ error: "no audio or video files in this folder" }, 400);
+          title = title || listed.title || "Google Drive";
+        } else {
+          const name = await driveFileName(parsed.id);
+          const type = AUDIO_EXT.test(name) ? "audio" : VIDEO_EXT.test(name) ? "video" : null;
+          if (!type) return json({ error: "not an audio or video file" }, 400);
+          files = [{ id: parsed.id, name, type }];
+          title = title || name.replace(/\.[^.]+$/, "");
+        }
+      } catch (e) { return json({ error: String((e as Error).message || e) }, 400); }
+      const artistId = typeof b.artistId === "string" && ARTIST_ID.test(b.artistId) ? b.artistId : null;
+      const year = Number(b.year) >= 1900 && Number(b.year) <= 2100 ? Number(b.year) : null;
+      const row = { drive_id: parsed.id, kind: parsed.kind, title, category: b.category, removed: false, files, listed_at: new Date().toISOString(), added_by: me.id, artist_id: artistId, year };
+      const { error } = await db.from("stalow_drive").upsert(row, { onConflict: "drive_id" });
+      if (error) return json({ error: "save failed" }, 500);
+      await bumpVersion();
+      return json({ item: driveOut(row) });
+    }
+
+    if (b.action === "drive.set") {
+      const patch: Record<string, unknown> = {};
+      if (typeof b.title === "string" && clean(b.title, 200)) patch.title = clean(b.title, 200);
+      if (CATEGORIES.has(b.category)) patch.category = b.category;
+      if (typeof b.removed === "boolean") patch.removed = b.removed;
+      if (b.refresh === true) patch.listed_at = null;
+      if (b.artistId === null || (typeof b.artistId === "string" && ARTIST_ID.test(b.artistId))) patch.artist_id = b.artistId;
+      if (b.year === null || (Number(b.year) >= 1900 && Number(b.year) <= 2100)) patch.year = b.year === null ? null : Number(b.year);
+      const { data, error } = await db.from("stalow_drive").update(patch).eq("drive_id", String(b.id || "")).select("*").maybeSingle();
+      if (error || !data) return json({ error: "no such item" }, 404);
+      await bumpVersion();
+      return json({ item: driveOut(data) });
     }
 
     if (b.action === "catalog.set") {

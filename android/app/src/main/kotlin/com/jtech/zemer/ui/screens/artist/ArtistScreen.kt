@@ -144,6 +144,10 @@ fun ArtistScreen(
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val playerConnection = LocalPlayerConnection.current ?: return
+    val driveItems by com.jtech.zemer.accounts.DriveLibrary.items.collectAsState()
+    val driveAlbums = remember(driveItems, viewModel.artistId) {
+        driveItems.filter { it.artistId == viewModel.artistId }.sortedByDescending { it.year ?: 0 }
+    }
     val unknownArtistTitle = stringResource(R.string.unknown_artist)
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -380,6 +384,24 @@ fun ArtistScreen(
                         },
                         playModifier = Modifier.focusRequester(firstFocus),
                     )
+                }
+
+                // Stalow: albums an admin added from Google Drive (missing on YouTube Music), newest first.
+                driveAlbums.takeIf { it.isNotEmpty() }?.let { albums ->
+                    item(key = "drive_albums_title") {
+                        NavigationTitle(title = stringResource(R.string.stalow_albums_drive), modifier = Modifier.animateItem())
+                    }
+                    item(key = "drive_albums_list") {
+                        LazyRow(
+                            contentPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp).animateItem(),
+                        ) {
+                            items(albums, key = { "drive_" + it.id }) { d ->
+                                com.jtech.zemer.accounts.DriveCard(d) { navController.navigate("drive/${d.id}") }
+                            }
+                        }
+                    }
                 }
 
                 if (showLocal) {

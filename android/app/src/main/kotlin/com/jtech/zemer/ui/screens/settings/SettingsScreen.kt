@@ -208,6 +208,14 @@ fun SettingsScreen(
             section = stringResource(R.string.settings_section_privacy),
             route = "settings/channels"
         ),
+        SettingItem(
+            id = "drive",
+            title = stringResource(R.string.stalow_drive),
+            description = stringResource(R.string.stalow_drive_add),
+            icon = R.drawable.library_music,
+            section = stringResource(R.string.settings_section_privacy),
+            route = "settings/drive"
+        ),
     ) else emptyList()
     val allSettings = adminSettings + baseSettings + androidAutoSettings + if (isLoggedIn) {
         listOf(

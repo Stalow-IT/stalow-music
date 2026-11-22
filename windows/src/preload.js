@@ -72,4 +72,10 @@ contextBridge.exposeInMainWorld('stalow', {
   adminPictures: (id, q) => call('admin:pictures', { id, q }),
   adminRows: () => call('admin:rows'),
   adminSet: (entry) => call('admin:set', entry),
+  drive: () => call('drive:list'),
+  onDriveChanged: (fn) => ipcRenderer.on('drive-changed', () => fn()),
+  adminDriveAll: () => call('admin:driveAll'),
+  adminDriveAdd: (a) => call('admin:driveAdd', a),
+  adminDriveSet: (a) => call('admin:driveSet', a),
+  adminAlbums: (id) => call('admin:albums', id),
 });

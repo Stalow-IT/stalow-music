@@ -1160,6 +1160,12 @@ class MusicService :
         mediaId: String,
         playbackData: YTPlayerUtils.PlaybackData? = null
     ) {
+        // A Drive file has no YouTube details or related songs: just keep it in the library (history).
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(mediaId)) {
+            val meta = withContext(Dispatchers.Main) { player.findNextMediaItemById(mediaId)?.metadata } ?: return
+            if (database.song(mediaId).first() == null) database.query { insert(meta) }
+            return
+        }
         val song = database.song(mediaId).first()
         val mediaMetadata = withContext(Dispatchers.Main) {
             player.findNextMediaItemById(mediaId)?.metadata
@@ -2327,6 +2333,12 @@ class MusicService :
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
             val mediaId = dataSpec.key ?: error("No media id")
 
+            // Stalow: a Google Drive file (Settings > Google Drive) streams straight from Drive's download
+            // address — none of the YouTube stream machinery applies.
+            if (com.jtech.zemer.accounts.DriveMedia.isDrive(mediaId)) {
+                return@Factory dataSpec.withUri(com.jtech.zemer.accounts.DriveMedia.streamUrl(mediaId).toUri())
+            }
+
             // Video-mode rendition: a `video:<id>` key resolves its video stream via the same
             // YTPlayerUtils path as audio (preferVideo=true), bypassing all the audio-only machinery —
             // the local-file/downloadCache branch, the FormatEntity upsert, recoverSong, and the
@@ -2913,6 +2925,7 @@ class MusicService :
                 (dataStore.get(PlaybackModeKey, PlaybackMode.DIRECT.name) == PlaybackMode.RELAY.name).also { relayModeNow = it }
             }
             val factory = when {
+                com.jtech.zemer.accounts.DriveMedia.isDrive(key) -> dataSourceFactory
                 relay -> relayDataSourceFactory
                 VideoRendition.isVideoKey(key) || VideoRendition.isMergeAudioKey(key) -> dataSourceFactory
                 sabrModeNow ?: run { dataStore.get(StreamSabrKey, false).also { sabrModeNow = it } } -> sabrDataSourceFactory
