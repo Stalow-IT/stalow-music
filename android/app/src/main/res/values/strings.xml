@@ -641,4 +641,5 @@
     <string name="stalow_compare_found">Now on YouTube Music: %1$s</string>
     <string name="stalow_compare_delete">Delete the Drive copy</string>
     <string name="stalow_compare_delete_q">Remove %1$s from the app and move its copy in your Google Drive to the bin? It is on YouTube Music now.</string>
+    <string name="stalow_drive_collection">Collection · %1$d albums (%2$d matched to their artists)</string>
 </resources>

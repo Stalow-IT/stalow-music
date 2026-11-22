@@ -227,12 +227,14 @@ fun DriveSettings(
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
         }
-        items(all.orEmpty(), key = { it.id }) { d ->
+        val everything = all.orEmpty()
+        items(everything.filter { it.parentId == null }, key = { it.id }) { d ->
             Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).alpha(if (d.removed) 0.55f else 1f)) {
                 Column(Modifier.padding(12.dp)) {
                     Text(d.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        stringResource(if (d.isFolder) R.string.stalow_drive_folder else R.string.stalow_drive_file) + " · " +
+                        if (d.isCollection) stringResource(R.string.stalow_drive_collection, everything.count { it.parentId == d.id && !it.removed }, everything.count { it.parentId == d.id && !it.removed && it.artistId != null })
+                        else stringResource(if (d.isFolder) R.string.stalow_drive_folder else R.string.stalow_drive_file) + " · " +
                             stringResource(R.string.stalow_drive_files, d.files.size),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -245,7 +247,7 @@ fun DriveSettings(
                             }
                         } else {
                             SectionDropdown(d.category, enabled = !busy) { c -> run(R.string.stalow_channels_saved) { DriveLibrary.set(d.id, category = c) } }
-                            if (d.isFolder) IconButton(onClick = { run(R.string.stalow_drive_refreshed) { DriveLibrary.set(d.id, refreshFiles = true) } }, enabled = !busy) {
+                            if (d.isFolder || d.isCollection) IconButton(onClick = { run(R.string.stalow_drive_refreshed) { DriveLibrary.set(d.id, refreshFiles = true) } }, enabled = !busy) {
                                 Icon(painterResource(R.drawable.sync), stringResource(R.string.stalow_drive_refresh))
                             }
                             IconButton(onClick = { confirmRemove = d }, enabled = !busy) {

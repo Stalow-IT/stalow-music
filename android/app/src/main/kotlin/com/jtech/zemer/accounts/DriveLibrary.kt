@@ -35,8 +35,11 @@ object DriveLibrary {
         /** Copying into the owner's Google Drive: "copying", "done", "failed", or null (not copied). */
         val copyStatus: String? = null,
         val copyError: String? = null,
+        /** The collection it came from (a shared folder of album folders), or null. */
+        val parentId: String? = null,
     ) {
         val isFolder get() = kind == "folder"
+        val isCollection get() = kind == "collection"
     }
 
     private val _items = MutableStateFlow<List<Item>>(emptyList())
@@ -67,6 +70,7 @@ object DriveLibrary {
                 year = o.optInt("year").takeIf { it in 1900..2100 },
                 copyStatus = o.optString("copyStatus").takeIf { it.isNotBlank() && it != "null" },
                 copyError = o.optString("copyError").takeIf { it.isNotBlank() && it != "null" },
+                parentId = o.optString("parentId").takeIf { it.matches(ID) },
             )
         }
     }

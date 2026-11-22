@@ -70,3 +70,9 @@ alter table public.stalow_drive_copier enable row level security;
 revoke all on public.stalow_drive_copier from anon, authenticated;
 alter table public.stalow_drive add column copy_id text, add column copy_status text, add column copy_error text, add column copied_at timestamptz;
 -- every 5 minutes: cron job 'stalow-drive-copy' posts {action: 'drive.copyTick', tickKey} to stalow-accounts
+
+-- Collections (migration stalow_drive_collections): a shared folder of album folders; each album row points to it
+alter table public.stalow_drive drop constraint if exists stalow_drive_kind_check;
+alter table public.stalow_drive add constraint stalow_drive_kind_check check (kind in ('folder', 'file', 'collection'));
+alter table public.stalow_drive add column parent_id text;
+create index stalow_drive_parent on public.stalow_drive (parent_id);

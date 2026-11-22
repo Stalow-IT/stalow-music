@@ -208,10 +208,8 @@ function parseDriveLink(link: string): { id: string; kind: "folder" | "file" } |
 
 const DRIVE_HEADERS = { "User-Agent": YT_HEADERS["User-Agent"], "Accept-Language": "en-US,en;q=0.9" };
 
-/** The files in a shared folder (and its sub-folders, two levels down), from Drive's public folder view. */
-async function listDriveFolder(folderId: string, depth = 0, seen = new Set<string>()): Promise<{ title: string; files: DriveFile[] }> {
-  if (seen.has(folderId) || seen.size > 40) return { title: "", files: [] };
-  seen.add(folderId);
+/** One shared folder's own entries (audio / video files and sub-folders), from Drive's public folder view. */
+async function folderEntries(folderId: string): Promise<{ title: string; files: DriveFile[]; subfolders: { id: string; name: string }[] }> {
   const res = await fetch(`https://drive.google.com/embeddedfolderview?id=${folderId}`, { headers: DRIVE_HEADERS });
   if (!res.ok) throw new Error(res.status === 404 ? "folder not found or not shared" : `Drive answered ${res.status}`);
   const html = await res.text();
@@ -228,17 +226,108 @@ async function listDriveFolder(folderId: string, depth = 0, seen = new Set<strin
     const type = AUDIO_EXT.test(name) ? "audio" : VIDEO_EXT.test(name) ? "video" : null;
     if (type) files.push({ id, name, type });
   }
-  if (depth < 2) {
-    for (const sub of subfolders.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
-      try {
-        const inner = await listDriveFolder(sub.id, depth + 1, seen);
-        files.push(...inner.files.map((f) => ({ ...f, name: `${sub.name} / ${f.name}` })));
-      } catch { /* a sub-folder that can't be read is skipped */ }
-      if (files.length > 1000) break;
-    }
+  subfolders.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  return { title, files, subfolders };
+}
+
+/** Runs [fn] over [items], [n] at a time. */
+async function pool<T, R>(items: T[], n: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i]); }
+  }));
+  return out;
+}
+
+/** The files in a shared folder and its sub-folders (two levels down), read several at a time. */
+async function listDriveFolder(folderId: string, depth = 0): Promise<{ title: string; files: DriveFile[] }> {
+  const top = await folderEntries(folderId);
+  const files = [...top.files];
+  if (depth < 2 && top.subfolders.length) {
+    const inner = await pool(top.subfolders.slice(0, 400), 8, async (sub) => {
+      try { return (await listDriveFolder(sub.id, depth + 1)).files.map((f) => ({ ...f, name: `${sub.name} / ${f.name}` })); } catch { return []; }
+    });
+    for (const list of inner) files.push(...list);
   }
   files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  return { title, files: files.slice(0, 1000) };
+  return { title: top.title, files: files.slice(0, 3000) };
+}
+
+// ---- Collections: a shared folder of album folders ("Artist - Album"); each album goes to its artist ----
+const nameKey = (t: string) => t.toLowerCase().normalize("NFKD").replace(/[\u0591-\u05C7\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+async function artistIndex(): Promise<Map<string, string>> {
+  // the database answers at most 1000 rows at a time: read the artists page by page
+  const a: any[] = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data } = await db.from("stalow_release_artists").select("artist_id,name").order("artist_id").range(from, from + 999);
+    a.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  const { data: c } = await db.from("stalow_catalog").select("entry_id,name,category,removed");
+  const m = new Map<string, string>();
+  for (const r of a) if (r.name) m.set(nameKey(r.name), r.artist_id);
+  for (const r of c || []) if (r.name && r.category === "music" && !r.removed) m.set(nameKey(r.name), r.entry_id);
+  return m;
+}
+/** "Artist - Album", "Artist & Other - Album" or "Album - Artist" -> the approved artist and the album name. */
+function albumOf(folder: string, idx: Map<string, string>): { artistId: string | null; title: string; year: number | null } {
+  const year = Number((folder.match(/\((19\d{2}|20\d{2})\)/) || [])[1]) || null;
+  // "R' Cheskie Weisz", "Rabbi ...", "Reb ..." -> the name itself
+  const find = (piece: string) => { const k = nameKey(piece); return idx.get(k) || idx.get(k.replace(/^(r|rabbi|reb|harav|rav)\s+/, "")) || null; };
+  const parts = folder.split(/\s+[-–]\s+/);
+  if (parts.length >= 2) {
+    for (let i = 0; i < parts.length; i++) {
+      for (const piece of [parts[i], ...parts[i].split(/\s*(?:&|,|\+|\band\b|\bfeat\.?|\bft\.?|\bwith\b)\s*/i)]) {
+        const id = find(piece);
+        if (id) return { artistId: id, title: parts.filter((_, j) => j !== i).join(" - ").trim() || folder, year };
+      }
+    }
+  }
+  // no "Artist - Album": the folder name may start with the artist's name (the longest that fits)
+  const k = nameKey(folder);
+  let best: { id: string; len: number } | null = null;
+  for (const [name, id] of idx) if (name.length >= 4 && (k === name || k.startsWith(name + " ")) && (!best || name.length > best.len)) best = { id, len: name.length };
+  if (best) return { artistId: best.id, title: folder, year };
+  return { artistId: null, title: folder, year };
+}
+/** Adds a collection's album folders that are not in the list yet (all of them the first time). */
+async function importAlbums(collection: { drive_id: string; category: string; added_by?: string | null }, subfolders: { id: string; name: string }[]) {
+  const { data: have } = await db.from("stalow_drive").select("drive_id,artist_id").eq("parent_id", collection.drive_id);
+  const known = new Set((have || []).map((r: any) => r.drive_id));
+  const fresh = subfolders.filter((s) => !known.has(s.id)).slice(0, 400);
+  const unmatched = new Set((have || []).filter((r: any) => !r.artist_id).map((r: any) => r.drive_id));
+  if (!fresh.length && !unmatched.size) return { added: 0, matched: 0 };
+  const idx = await artistIndex();
+  // albums added before without an artist: try again (the artist list may have grown)
+  for (const sub of subfolders.filter((s) => unmatched.has(s.id))) {
+    const a = albumOf(sub.name, idx);
+    if (a.artistId) await db.from("stalow_drive").update({ artist_id: a.artistId, title: a.title, year: a.year }).eq("drive_id", sub.id);
+  }
+  if (!fresh.length) return { added: 0, matched: 0 };
+  const now = new Date().toISOString();
+  const rows = (await pool(fresh, 8, async (sub) => {
+    let files: DriveFile[] = [];
+    try { files = (await listDriveFolder(sub.id, 1)).files; } catch { /* unreadable: skipped */ }
+    if (!files.length) return null;
+    const a = albumOf(sub.name, idx);
+    return { drive_id: sub.id, kind: "folder", title: a.title, category: collection.category, removed: false, files, listed_at: now, added_by: collection.added_by || null, artist_id: a.artistId, year: a.year, parent_id: collection.drive_id };
+  })).filter(Boolean) as any[];
+  if (rows.length) await db.from("stalow_drive").upsert(rows, { onConflict: "drive_id", ignoreDuplicates: true });
+  return { added: rows.length, matched: rows.filter((r) => r.artist_id).length };
+}
+/** A collection is looked at again every half hour, so new album folders show up by themselves. */
+async function refreshCollections() {
+  const { data } = await db.from("stalow_drive").select("drive_id,category,added_by,listed_at").eq("kind", "collection").eq("removed", false);
+  const stale = (data || []).filter((r: any) => !r.listed_at || Date.now() - Date.parse(r.listed_at) > 30 * 60 * 1000).slice(0, 3);
+  for (const c of stale) {
+    try {
+      const top = await folderEntries(c.drive_id);
+      const r = await importAlbums(c, top.subfolders);
+      await db.from("stalow_drive").update({ listed_at: new Date().toISOString() }).eq("drive_id", c.drive_id);
+      if (r.added) await bumpVersion();
+    } catch { /* try again next time */ }
+  }
 }
 
 /** A shared single file's name (its page title), or an error when it is not shared. */
@@ -251,7 +340,7 @@ async function driveFileName(fileId: string): Promise<string> {
   return title;
 }
 
-const driveOut = (r: any) => ({ id: r.drive_id, kind: r.kind, title: r.title, category: r.category, removed: r.removed, files: r.files || [], listedAt: r.listed_at, artistId: r.artist_id || null, year: r.year || null, copyStatus: r.copy_status || null, copyError: r.copy_error || null });
+const driveOut = (r: any) => ({ id: r.drive_id, parentId: r.parent_id || null, kind: r.kind, title: r.title, category: r.category, removed: r.removed, files: r.files || [], listedAt: r.listed_at, artistId: r.artist_id || null, year: r.year || null, copyStatus: r.copy_status || null, copyError: r.copy_error || null });
 const ARTIST_ID = /^UC[A-Za-z0-9_-]{10,40}$/;
 
 // ---- An artist's albums and singles on YouTube Music (Settings > Channels & artists > Albums) ----
@@ -477,7 +566,7 @@ async function copyTick(limit: number) {
   if (!c) return { copied: 0 };
   const { data } = await db.from("stalow_drive").select("*").eq("removed", false).order("created_at", { ascending: true });
   const sixHours = Date.now() - 6 * 3600 * 1000;
-  const due = (data || []).filter((r: any) => !r.copy_status || r.copy_status === "copying" ||
+  const due = (data || []).filter((r: any) => r.kind !== "collection").filter((r: any) => !r.copy_status || r.copy_status === "copying" ||
     (r.copy_status === "done" && r.kind === "folder" && (!r.copied_at || Date.parse(r.copied_at) < sixHours))).slice(0, limit);
   for (const r of due) await runCopy(c, r);
   return { copied: due.length };
@@ -551,7 +640,8 @@ Deno.serve(async (req) => {
 
     if (b.action === "drive.list") {
       if (me.status !== "approved") return json({ error: "not approved" }, 403);
-      const { data } = await db.from("stalow_drive").select("*").eq("removed", false).order("created_at", { ascending: true });
+      await refreshCollections();
+      const { data } = await db.from("stalow_drive").select("*").eq("removed", false).neq("kind", "collection").order("created_at", { ascending: true });
       const rows = data || [];
       await refreshDriveFolders(rows);
       return json({ items: rows.map(driveOut) });
@@ -621,6 +711,21 @@ Deno.serve(async (req) => {
       if (!parsed) return json({ error: "not a Google Drive link" }, 400);
       if (!CATEGORIES.has(b.category)) return json({ error: "choose a section" }, 400);
       let title = clean(b.title, 200), files: DriveFile[] = [];
+      // a folder of album folders (and no songs of its own) is a collection: each album goes to its artist
+      if (parsed.kind === "folder" && b.asAlbums !== false) {
+        let top;
+        try { top = await folderEntries(parsed.id); } catch (e) { return json({ error: String((e as Error).message || e) }, 400); }
+        if (!top.files.length && top.subfolders.length >= 2) {
+          const col = { drive_id: parsed.id, kind: "collection", title: title || top.title || "Google Drive", category: b.category, removed: false, files: [], listed_at: new Date().toISOString(), added_by: me.id };
+          const { error } = await db.from("stalow_drive").upsert(col, { onConflict: "drive_id" });
+          if (error) return json({ error: "save failed" }, 500);
+          const r = await importAlbums(col, top.subfolders);
+          await bumpVersion();
+          const c = await copier();
+          if (c) EdgeRuntime.waitUntil(copyTick(2));
+          return json({ item: driveOut(col), albums: r.added, matched: r.matched });
+        }
+      }
       try {
         if (parsed.kind === "folder") {
           const listed = await listDriveFolder(parsed.id);
@@ -693,6 +798,10 @@ Deno.serve(async (req) => {
       if (b.year === null || (Number(b.year) >= 1900 && Number(b.year) <= 2100)) patch.year = b.year === null ? null : Number(b.year);
       const { data, error } = await db.from("stalow_drive").update(patch).eq("drive_id", String(b.id || "")).select("*").maybeSingle();
       if (error || !data) return json({ error: "no such item" }, 404);
+      if (data.kind === "collection" && typeof b.removed === "boolean") await db.from("stalow_drive").update({ removed: b.removed }).eq("parent_id", data.drive_id);
+      if (data.kind === "collection" && b.refresh === true) {
+        try { const top = await folderEntries(data.drive_id); await importAlbums(data, top.subfolders); } catch { /* next time */ }
+      }
       await bumpVersion();
       return json({ item: driveOut(data) });
     }

@@ -416,4 +416,5 @@
     <string name="stalow_compare_found">עכשיו ב-YouTube Music: %1$s</string>
     <string name="stalow_compare_delete">מחיקת העותק בדרייב</string>
     <string name="stalow_compare_delete_q">להסיר את %1$s מהאפליקציה ולהעביר את העותק שלו ב-Google Drive לפח? הוא כבר ב-YouTube Music.</string>
+    <string name="stalow_drive_collection">אוסף · %1$d אלבומים (%2$d שויכו לאמנים שלהם)</string>
 </resources>

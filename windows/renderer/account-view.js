@@ -247,18 +247,22 @@ PAGES.drive = async () => {
   let items;
   try { items = await stalow.adminDriveAll(); } catch (e) { page('google_drive', group('', row(t('admin_failed', e.message), ''))); return; }
   const act = (fn) => async (ev) => { ev.target.disabled = true; try { await fn(); } catch (e) { failed(e); } PAGES.drive(); };
+  const top = items.filter((d) => !d.parentId);
   const copierBox = el('div', { class: 'item block' }, el('div', { class: 'muted', text: t('loading') }));
   copierCard(copierBox);
   page('google_drive',
     group(t('copier'), copierBox),
     group(t('drive_add'), el('div', { class: 'item block' }, driveAddForm({ onDone: () => PAGES.drive() }))),
-    group(`${t('google_drive')} (${items.length})`, items.length ? items.map((d) => el('div', { class: 'item admin-row' + (d.removed ? ' removed' : '') },
+    // a collection's albums are not listed one by one (each artist's Albums window has them)
+    group(`${t('google_drive')} (${top.length})`, top.length ? top.map((d) => el('div', { class: 'item admin-row' + (d.removed ? ' removed' : '') },
       el('div', { class: 'grow' }, el('div', {}, el('div', { class: 'it', text: d.title }),
-        el('div', { class: 'id', text: [t(d.kind === 'folder' ? 'drive_folder' : 'drive_file'), t('drive_files', d.files.length), d.artistId ? t('albums') : ''].filter(Boolean).join(' · ') }), copyStatus(d))),
+        el('div', { class: 'id', text: d.kind === 'collection'
+          ? t('drive_collection', items.filter((x) => x.parentId === d.id && !x.removed).length, items.filter((x) => x.parentId === d.id && !x.removed && x.artistId).length)
+          : [t(d.kind === 'folder' ? 'drive_folder' : 'drive_file'), t('drive_files', d.files.length), d.artistId ? t('albums') : ''].filter(Boolean).join(' · ') }), copyStatus(d))),
       el('div', { class: 'ctl' }, d.removed
         ? el('button', { class: 'btn secondary', text: t('admin_restore'), onclick: act(() => stalow.adminDriveSet({ id: d.id, removed: false })) })
         : [d.artistId ? '' : categorySelect(d.category, (c) => act(() => stalow.adminDriveSet({ id: d.id, category: c }))({ target: {} })),
-          d.kind === 'folder' ? el('button', { class: 'btn secondary', text: t('drive_refresh'), onclick: act(() => stalow.adminDriveSet({ id: d.id, refresh: true })) }) : '',
+          d.kind !== 'file' ? el('button', { class: 'btn secondary', text: t('drive_refresh'), onclick: act(() => stalow.adminDriveSet({ id: d.id, refresh: true })) }) : '',
           el('button', { class: 'btn danger', text: t('admin_delete'), onclick: (ev) => { if (confirm(t('admin_delete_q', d.title))) act(() => stalow.adminDriveSet({ id: d.id, removed: true }))(ev); } })])))
       : row(t('drive_none'), '')));
 };
