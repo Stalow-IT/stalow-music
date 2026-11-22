@@ -394,4 +394,26 @@
     <string name="stalow_single">סינגל</string>
     <string name="stalow_album">אלבום</string>
     <string name="stalow_source_youtube">YouTube Music</string>
+    <string name="stalow_copier">העתקה ל-Google Drive שלי</string>
+    <string name="stalow_copier_on">פעיל: כל מה שמתווסף מועתק לתיקייה "Stalow Music" ב-Google Drive שלך ומושמע משם.</string>
+    <string name="stalow_copier_open">פתיחת התיקייה</string>
+    <string name="stalow_copier_disconnect">ניתוק</string>
+    <string name="stalow_copier_owner_only">רק הבעלים יכול לחבר את ה-Google Drive שלו.</string>
+    <string name="stalow_copier_explain">שמרו עותק משלכם של כל תיקייה וקובץ מהדרייב שנוספו כאן, כך שיישארו גם אם מי ששיתף אותם ימחק אותם. זה תופס מקום ב-Google Drive שלכם.</string>
+    <string name="stalow_copier_setup">הגדרה</string>
+    <string name="stalow_copier_steps">1. לחצו על העתקת הסקריפט.\n2. פתחו את script.google.com (מחוברים לחשבון Google שלכם), פרויקט חדש, מחקו את מה שיש, הדביקו ושמרו.\n3. Deploy &#8250; New deployment &#8250; Web app. Execute as: Me. Who has access: Anyone. אשרו גישה לדרייב (אם Google מזהיר: Advanced &#8250; Go to the project, זה הסקריפט שלכם).\n4. העתיקו את ה-Web app URL, הדביקו למטה ולחצו חיבור.</string>
+    <string name="stalow_copier_copy_script">העתקת הסקריפט</string>
+    <string name="stalow_copier_copied">הסקריפט הועתק</string>
+    <string name="stalow_copier_url">Web app URL</string>
+    <string name="stalow_copier_connect">חיבור</string>
+    <string name="stalow_copier_connected">מחובר: ההעתקה מתחילה</string>
+    <string name="stalow_copy_copying">מעתיק לדרייב שלך…</string>
+    <string name="stalow_copy_done">נשמר בדרייב שלך</string>
+    <string name="stalow_copy_failed">ההעתקה נכשלה: %1$s</string>
+    <string name="stalow_compare">השוואה עם YouTube Music</string>
+    <string name="stalow_compare_none">אין אלבומים מהדרייב לאמן הזה.</string>
+    <string name="stalow_compare_not_yet">עדיין לא ב-YouTube Music</string>
+    <string name="stalow_compare_found">עכשיו ב-YouTube Music: %1$s</string>
+    <string name="stalow_compare_delete">מחיקת העותק בדרייב</string>
+    <string name="stalow_compare_delete_q">להסיר את %1$s מהאפליקציה ולהעביר את העותק שלו ב-Google Drive לפח? הוא כבר ב-YouTube Music.</string>
 </resources>

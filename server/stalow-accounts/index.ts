@@ -6,6 +6,8 @@
 //   catalog.get                                                     (approved accounts)
 //   catalog.set {entry:{id,name,thumbnail,category,removed}}  catalog.search {q}  catalog.images {id, q}   (admins)
 //   drive.list (approved)   drive.all  drive.add {link, category, title?, artistId?, year?}  drive.set {id, title?, category?, removed?, refresh?, artistId?, year?}  catalog.albums {id}   (admins)
+//   drive.copier.get  drive.copier.set {url}  drive.copier.clear   (owner)     drive.copyTick {tickKey}   (scheduler)
+//   catalog.compare {id}  drive.set {..., removed: true, deleteCopy: true}   (admins)
 // Deployed as the Supabase edge function "stalow-accounts" (verify_jwt off) in the it-manager project.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -249,7 +251,7 @@ async function driveFileName(fileId: string): Promise<string> {
   return title;
 }
 
-const driveOut = (r: any) => ({ id: r.drive_id, kind: r.kind, title: r.title, category: r.category, removed: r.removed, files: r.files || [], listedAt: r.listed_at, artistId: r.artist_id || null, year: r.year || null });
+const driveOut = (r: any) => ({ id: r.drive_id, kind: r.kind, title: r.title, category: r.category, removed: r.removed, files: r.files || [], listedAt: r.listed_at, artistId: r.artist_id || null, year: r.year || null, copyStatus: r.copy_status || null, copyError: r.copy_error || null });
 const ARTIST_ID = /^UC[A-Za-z0-9_-]{10,40}$/;
 
 // ---- An artist's albums and singles on YouTube Music (Settings > Channels & artists > Albums) ----
@@ -311,11 +313,185 @@ async function refreshDriveFolders(rows: any[]) {
   const stale = rows.filter((r) => r.kind === "folder" && !r.removed && (!r.listed_at || Date.now() - Date.parse(r.listed_at) > 30 * 60 * 1000));
   await Promise.all(stale.slice(0, 10).map(async (r) => {
     try {
-      const { files } = await listDriveFolder(r.drive_id);
+      // a finished copy in the owner's Drive is what plays
+      const { files } = await listDriveFolder(r.copy_status === "done" && r.copy_id ? r.copy_id : r.drive_id);
       r.files = files; r.listed_at = new Date().toISOString();
       await db.from("stalow_drive").update({ files, listed_at: r.listed_at }).eq("drive_id", r.drive_id);
     } catch { /* keep the last copy */ }
   }));
+}
+
+// ---- Copies in the owner's own Google Drive (Settings > Google Drive > Copy to my Google Drive) ----
+// The owner installs a small Google Apps Script (server/drive-copier/Code.gs, sent to the app below) that copies
+// each added folder or file into "Stalow Music" in their Drive; the apps then play the copies, which stay even
+// if the original is deleted. Big folders are copied a part at a time (on add, then every 5 minutes).
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void };
+const COPIER_SCRIPT = String.raw`// Stalow Music: copies the Google Drive folders and files the admins add into YOUR Google Drive
+// (a folder named "Stalow Music"), so they stay even if the person who shared them deletes them.
+// The app then plays your copies, and an admin can move a copy to the bin once the album is on YouTube Music.
+// Install once:
+//   1. Open https://script.google.com while signed in to your Google account, click "New project".
+//   2. Delete what is there, paste this whole file, and save (name it "Stalow Music copier").
+//   3. Deploy > New deployment > type "Web app". Execute as: Me. Who has access: Anyone. Deploy.
+//   4. Allow access to your Google Drive when Google asks (Advanced > Go to ... if it warns: it is your own script).
+//   5. Copy the "Web app URL" and paste it in Stalow Music: Settings > Google Drive > Copy to my Google Drive.
+// The app connects once with a private key the script keeps; nobody else can use it after that.
+
+const ROOT_NAME = 'Stalow Music';
+const TIME_LIMIT_MS = 100 * 1000; // stop and carry on next time, well inside the server's time limit
+const START = Date.now();
+
+function doPost(e) {
+  let req;
+  try { req = JSON.parse(e.postData.contents); } catch (err) { return out({ error: 'bad request' }); }
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty('SECRET');
+  if (!secret) {
+    // the first connection sets the private key
+    if (req.action !== 'connect' || typeof req.secret !== 'string' || req.secret.length < 32) return out({ error: 'not connected yet' });
+    props.setProperty('SECRET', req.secret);
+    secret = req.secret;
+  }
+  if (req.secret !== secret) return out({ error: 'wrong key' });
+  try {
+    if (req.action === 'connect') return out({ ok: true, rootUrl: root().getUrl() });
+    if (req.action === 'copy') return out(copy(req));
+    if (req.action === 'trash') return out(trash(req));
+    return out({ error: 'unknown action' });
+  } catch (err) {
+    return out({ error: String(err && err.message || err).slice(0, 300) });
+  }
+}
+
+function doGet() {
+  return out({ ok: true, app: 'Stalow Music copier' });
+}
+
+function root() {
+  const it = DriveApp.getRootFolder().getFoldersByName(ROOT_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_NAME);
+}
+
+function share(item) {
+  // the app streams the copies, so they are shared by link (view only), like the originals
+  item.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+}
+
+/** Copies one shared file, or a shared folder with its sub-folders; safe to call again (only what is missing is copied). */
+function copy(req) {
+  if (req.kind === 'file') {
+    if (req.copyId) return { done: true, copyId: req.copyId };
+    const src = DriveApp.getFileById(req.sourceId);
+    const f = src.makeCopy(src.getName(), root());
+    share(f);
+    return { done: true, copyId: f.getId() };
+  }
+  let dest;
+  if (req.copyId) {
+    dest = DriveApp.getFolderById(req.copyId);
+  } else {
+    dest = root().createFolder(String(req.title || 'Google Drive').slice(0, 200));
+    share(dest);
+  }
+  let src;
+  try {
+    src = DriveApp.getFolderById(req.sourceId);
+  } catch (err) {
+    // the original is gone (or no longer shared): keep the copy as it is
+    return { done: true, copyId: dest.getId(), sourceGone: true };
+  }
+  const done = copyInto(src, dest, 0);
+  return { done: done, copyId: dest.getId() };
+}
+
+/** Moves a copy to the bin (an album that is now on YouTube Music); only items inside "Stalow Music". */
+function trash(req) {
+  let item;
+  try { item = req.kind === 'file' ? DriveApp.getFileById(req.copyId) : DriveApp.getFolderById(req.copyId); } catch (err) { return { done: true, gone: true }; }
+  const rootId = root().getId();
+  const parents = item.getParents();
+  let inside = false;
+  while (parents.hasNext()) if (parents.next().getId() === rootId) inside = true;
+  if (!inside) return { error: 'not a Stalow Music copy' };
+  item.setTrashed(true);
+  return { done: true };
+}
+
+function copyInto(src, dest, depth) {
+  const have = {};
+  const existing = dest.getFiles();
+  while (existing.hasNext()) have[existing.next().getName()] = true;
+  const files = src.getFiles();
+  while (files.hasNext()) {
+    if (Date.now() - START > TIME_LIMIT_MS) return false;
+    const f = files.next();
+    if (!have[f.getName()]) f.makeCopy(f.getName(), dest);
+  }
+  if (depth >= 2) return true;
+  const subs = src.getFolders();
+  while (subs.hasNext()) {
+    const s = subs.next();
+    const it = dest.getFoldersByName(s.getName());
+    const d = it.hasNext() ? it.next() : dest.createFolder(s.getName());
+    if (!copyInto(s, d, depth + 1)) return false;
+  }
+  return true;
+}
+
+function out(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+`;
+const COPIER_URL = /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]{20,120}\/exec$/;
+async function copier() {
+  const { data } = await db.from("stalow_drive_copier").select("*").eq("id", 1).single();
+  return data && data.url && data.secret ? data : null;
+}
+async function callCopier(c: any, body: Record<string, unknown>) {
+  const res = await fetch(c.url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, secret: c.secret }), redirect: "follow" });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error(res.ok ? "the copier answered something else (is it deployed as a Web app for Anyone?)" : `the copier answered ${res.status}`); }
+}
+/** Copies (or carries on copying) one item into the owner's Drive; once done, the item plays from the copy. */
+async function runCopy(c: any, r: any) {
+  try {
+    const out = await callCopier(c, { action: "copy", sourceId: r.drive_id, kind: r.kind, title: r.title, copyId: r.copy_id || undefined });
+    if (out.error) throw new Error(out.error);
+    const patch: Record<string, unknown> = { copy_id: out.copyId, copy_status: out.done ? "done" : "copying", copy_error: null };
+    if (out.done) {
+      patch.copied_at = new Date().toISOString();
+      if (r.kind === "folder") {
+        try { patch.files = (await listDriveFolder(out.copyId)).files; patch.listed_at = patch.copied_at; } catch { /* keep the list */ }
+      } else {
+        patch.files = (r.files || []).map((f: any) => ({ ...f, id: out.copyId }));
+      }
+    }
+    await db.from("stalow_drive").update(patch).eq("drive_id", r.drive_id);
+  } catch (e) {
+    await db.from("stalow_drive").update({ copy_status: "failed", copy_error: String((e as Error).message || e).slice(0, 300) }).eq("drive_id", r.drive_id);
+  }
+}
+/** The next items to copy: new ones, unfinished ones, and finished folders every 6 hours (for new files). */
+async function copyTick(limit: number) {
+  const c = await copier();
+  if (!c) return { copied: 0 };
+  const { data } = await db.from("stalow_drive").select("*").eq("removed", false).order("created_at", { ascending: true });
+  const sixHours = Date.now() - 6 * 3600 * 1000;
+  const due = (data || []).filter((r: any) => !r.copy_status || r.copy_status === "copying" ||
+    (r.copy_status === "done" && r.kind === "folder" && (!r.copied_at || Date.parse(r.copied_at) < sixHours))).slice(0, limit);
+  for (const r of due) await runCopy(c, r);
+  return { copied: due.length };
+}
+
+// ---- Compare: Drive albums that YouTube Music now has (the Drive copy can then go) ----
+const albumKey = (t: string) => t.toLowerCase().normalize("NFKD").replace(/[\u0591-\u05C7\u0300-\u036f]/g, "")
+  .replace(/\(.*?\)|\[.*?\]/g, " ").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+function sameAlbum(a: string, b: string) {
+  const x = albumKey(a), y = albumKey(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  // one name inside the other ("Album" vs "Album - Deluxe"), for names long enough to mean something
+  return Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x));
 }
 
 async function bumpVersion() {
@@ -327,6 +503,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   let b: any;
   try { b = await req.json(); } catch { return json({ error: "bad request" }, 400); }
+  // the scheduler (every 5 minutes) carries on copying into the owner's Drive
+  if (b?.action === "drive.copyTick") {
+    const { data } = await db.from("stalow_drive_copier").select("tick_key").eq("id", 1).single();
+    if (!data || typeof b.tickKey !== "string" || b.tickKey !== data.tick_key) return json({ error: "not allowed" }, 403);
+    return json(await copyTick(1));
+  }
   if (!validKey(b?.key)) return json({ error: "bad key" }, 400);
   try {
     if (b.action === "register") {
@@ -415,6 +597,20 @@ Deno.serve(async (req) => {
       return json({ albums, drive: (data || []).map(driveOut) });
     }
 
+    if (b.action === "catalog.compare") {
+      const id = typeof b.id === "string" && ARTIST_ID.test(b.id) ? b.id : "";
+      if (!id) return json({ error: "bad artist" }, 400);
+      const [albums, { data }] = await Promise.all([
+        artistAlbums(id),
+        db.from("stalow_drive").select("*").eq("artist_id", id).eq("removed", false),
+      ]);
+      const results = (data || []).map((d: any) => {
+        const match = albums.find((a) => sameAlbum(a.title, d.title));
+        return { drive: driveOut(d), match: match || null };
+      });
+      return json({ results, youtubeCount: albums.length });
+    }
+
     if (b.action === "drive.all") {
       const { data } = await db.from("stalow_drive").select("*").order("created_at", { ascending: true });
       return json({ items: (data || []).map(driveOut) });
@@ -445,7 +641,35 @@ Deno.serve(async (req) => {
       const { error } = await db.from("stalow_drive").upsert(row, { onConflict: "drive_id" });
       if (error) return json({ error: "save failed" }, 500);
       await bumpVersion();
-      return json({ item: driveOut(row) });
+      // with the owner's copier connected, start copying it into their Drive now
+      const c = await copier();
+      if (c) EdgeRuntime.waitUntil(runCopy(c, row));
+      return json({ item: driveOut({ ...row, copy_status: c ? "copying" : null }) });
+    }
+
+    if (b.action === "drive.copier.get") {
+      const { data } = await db.from("stalow_drive_copier").select("url,root_url,connected_at").eq("id", 1).single();
+      return json({ connected: !!data?.url, rootUrl: data?.root_url || null, connectedAt: data?.connected_at || null, owner: me.role === "owner", script: COPIER_SCRIPT });
+    }
+
+    if (b.action === "drive.copier.set") {
+      if (me.role !== "owner") return json({ error: "only the owner can connect their Google Drive" }, 403);
+      const url = clean(b.url, 300);
+      if (!COPIER_URL.test(url)) return json({ error: "paste the Web app URL (it ends with /exec)" }, 400);
+      const secret = [...crypto.getRandomValues(new Uint8Array(32))].map((x) => x.toString(16).padStart(2, "0")).join("");
+      let out: any;
+      try { out = await callCopier({ url, secret }, { action: "connect" }); } catch (e) { return json({ error: String((e as Error).message || e) }, 400); }
+      if (!out?.ok) return json({ error: out?.error === "wrong key" ? "this script was connected before: in the script, Project Settings > Script Properties, delete SECRET, then try again" : (out?.error || "the copier did not answer") }, 400);
+      await db.from("stalow_drive_copier").update({ url, secret, root_url: out.rootUrl || null, connected_at: new Date().toISOString() }).eq("id", 1);
+      await db.from("stalow_drive").update({ copy_status: null, copy_error: null }).eq("copy_status", "failed");
+      EdgeRuntime.waitUntil(copyTick(3));
+      return json({ connected: true, rootUrl: out.rootUrl || null });
+    }
+
+    if (b.action === "drive.copier.clear") {
+      if (me.role !== "owner") return json({ error: "only the owner can disconnect their Google Drive" }, 403);
+      await db.from("stalow_drive_copier").update({ url: null, secret: null, root_url: null, connected_at: null }).eq("id", 1);
+      return json({ connected: false });
     }
 
     if (b.action === "drive.set") {
@@ -454,6 +678,17 @@ Deno.serve(async (req) => {
       if (CATEGORIES.has(b.category)) patch.category = b.category;
       if (typeof b.removed === "boolean") patch.removed = b.removed;
       if (b.refresh === true) patch.listed_at = null;
+      // removing it can also move the copy in the owner's Drive to the bin (e.g. the album is now on YouTube Music)
+      if (b.removed === true && b.deleteCopy === true) {
+        const { data: row } = await db.from("stalow_drive").select("*").eq("drive_id", String(b.id || "")).maybeSingle();
+        const c = await copier();
+        if (row?.copy_id && c) {
+          let out: any;
+          try { out = await callCopier(c, { action: "trash", kind: row.kind, copyId: row.copy_id }); } catch (e) { return json({ error: String((e as Error).message || e) }, 400); }
+          if (out?.error) return json({ error: out.error }, 400);
+          patch.copy_id = null; patch.copy_status = null;
+        }
+      }
       if (b.artistId === null || (typeof b.artistId === "string" && ARTIST_ID.test(b.artistId))) patch.artist_id = b.artistId;
       if (b.year === null || (Number(b.year) >= 1900 && Number(b.year) <= 2100)) patch.year = b.year === null ? null : Number(b.year);
       const { data, error } = await db.from("stalow_drive").update(patch).eq("drive_id", String(b.id || "")).select("*").maybeSingle();

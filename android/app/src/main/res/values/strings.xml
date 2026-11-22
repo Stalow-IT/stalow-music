@@ -619,4 +619,26 @@
     <string name="stalow_single">Single</string>
     <string name="stalow_album">Album</string>
     <string name="stalow_source_youtube">YouTube Music</string>
+    <string name="stalow_copier">Copy to my Google Drive</string>
+    <string name="stalow_copier_on">On: everything added is copied into the "Stalow Music" folder in your Google Drive and plays from there.</string>
+    <string name="stalow_copier_open">Open the folder</string>
+    <string name="stalow_copier_disconnect">Disconnect</string>
+    <string name="stalow_copier_owner_only">Only the owner can connect their Google Drive.</string>
+    <string name="stalow_copier_explain">Keep your own copy of every Drive folder and file added here, so it stays even if the person who shared it deletes it. It uses space in your Google Drive.</string>
+    <string name="stalow_copier_setup">Set it up</string>
+    <string name="stalow_copier_steps">1. Tap Copy the script.\n2. Open script.google.com (signed in to your Google account), New project, delete what is there, paste, save.\n3. Deploy &#8250; New deployment &#8250; Web app. Execute as: Me. Who has access: Anyone. Deploy, and allow access to your Drive (if Google warns, Advanced &#8250; Go to the project: it is your own script).\n4. Copy the Web app URL, paste it below, tap Connect.</string>
+    <string name="stalow_copier_copy_script">Copy the script</string>
+    <string name="stalow_copier_copied">Script copied</string>
+    <string name="stalow_copier_url">Web app URL</string>
+    <string name="stalow_copier_connect">Connect</string>
+    <string name="stalow_copier_connected">Connected: copying starts now</string>
+    <string name="stalow_copy_copying">Copying to your Drive…</string>
+    <string name="stalow_copy_done">Saved in your Drive</string>
+    <string name="stalow_copy_failed">Copy failed: %1$s</string>
+    <string name="stalow_compare">Compare with YouTube Music</string>
+    <string name="stalow_compare_none">No Drive albums for this artist.</string>
+    <string name="stalow_compare_not_yet">Not on YouTube Music yet</string>
+    <string name="stalow_compare_found">Now on YouTube Music: %1$s</string>
+    <string name="stalow_compare_delete">Delete the Drive copy</string>
+    <string name="stalow_compare_delete_q">Remove %1$s from the app and move its copy in your Google Drive to the bin? It is on YouTube Music now.</string>
 </resources>

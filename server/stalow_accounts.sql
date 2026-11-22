@@ -54,3 +54,19 @@ create table public.stalow_drive (
 );
 alter table public.stalow_drive enable row level security;
 revoke all on public.stalow_drive from anon, authenticated;
+
+-- Copies in the owner's own Google Drive (migration stalow_drive_copier): the owner's Apps Script
+-- (server/drive-copier/Code.gs) is connected once with a private key; a schedule carries on copying.
+create table public.stalow_drive_copier (
+  id           int primary key default 1 check (id = 1),
+  url          text,
+  secret       text,
+  tick_key     text not null default encode(extensions.gen_random_bytes(24), 'hex'),
+  root_url     text,
+  connected_at timestamptz
+);
+insert into public.stalow_drive_copier default values;
+alter table public.stalow_drive_copier enable row level security;
+revoke all on public.stalow_drive_copier from anon, authenticated;
+alter table public.stalow_drive add column copy_id text, add column copy_status text, add column copy_error text, add column copied_at timestamptz;
+-- every 5 minutes: cron job 'stalow-drive-copy' posts {action: 'drive.copyTick', tickKey} to stalow-accounts

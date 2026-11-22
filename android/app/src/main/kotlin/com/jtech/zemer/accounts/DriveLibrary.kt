@@ -32,6 +32,9 @@ object DriveLibrary {
         /** The artist this is an album of (filled in by an admin when YouTube Music lacks it), or null. */
         val artistId: String? = null,
         val year: Int? = null,
+        /** Copying into the owner's Google Drive: "copying", "done", "failed", or null (not copied). */
+        val copyStatus: String? = null,
+        val copyError: String? = null,
     ) {
         val isFolder get() = kind == "folder"
     }
@@ -62,6 +65,8 @@ object DriveLibrary {
                 },
                 artistId = o.optString("artistId").takeIf { it.startsWith("UC") },
                 year = o.optInt("year").takeIf { it in 1900..2100 },
+                copyStatus = o.optString("copyStatus").takeIf { it.isNotBlank() && it != "null" },
+                copyError = o.optString("copyError").takeIf { it.isNotBlank() && it != "null" },
             )
         }
     }
@@ -93,6 +98,37 @@ object DriveLibrary {
             },
         )
         refresh()
+    }
+
+    /** Removes it for everyone; with [deleteCopy] its copy in the owner's Drive goes to the bin too. */
+    suspend fun remove(id: String, deleteCopy: Boolean) {
+        StalowAccount.call("drive.set", JSONObject().put("id", id).put("removed", true).put("deleteCopy", deleteCopy))
+        refresh()
+    }
+
+    data class Copier(val connected: Boolean, val rootUrl: String?, val isOwner: Boolean, val script: String)
+
+    /** Copy to my Google Drive: whether the owner's copier is connected, and the script to install. */
+    suspend fun copier(): Copier {
+        val o = StalowAccount.call("drive.copier.get")
+        return Copier(o.optBoolean("connected"), o.optString("rootUrl").takeIf { it.startsWith("https://") }, o.optBoolean("owner"), o.optString("script"))
+    }
+
+    suspend fun connectCopier(url: String) { StalowAccount.call("drive.copier.set", JSONObject().put("url", url.trim())) }
+
+    suspend fun disconnectCopier() { StalowAccount.call("drive.copier.clear") }
+
+    data class Compared(val item: Item, val match: Album?)
+
+    /** Each Drive album of [artistId], and the YouTube Music album with the same name if it has appeared. */
+    suspend fun compare(artistId: String): List<Compared> {
+        val json = StalowAccount.call("catalog.compare", JSONObject().put("id", artistId))
+        val list = json.optJSONArray("results") ?: JSONArray()
+        return (0 until list.length()).mapNotNull { list.optJSONObject(it) }.mapNotNull { r ->
+            val item = parse(JSONObject().put("items", JSONArray().put(r.optJSONObject("drive") ?: return@mapNotNull null))).firstOrNull() ?: return@mapNotNull null
+            val m = r.optJSONObject("match")
+            Compared(item, m?.let { Album(it.optString("browseId"), it.optString("title"), it.optInt("year").takeIf { y -> y > 0 }, it.optString("kind"), it.optString("thumbnail")) })
+        }
     }
 
     /** The albums of [artistId] attached from Drive. */

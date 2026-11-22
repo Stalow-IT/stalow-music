@@ -280,3 +280,7 @@ svg { width: 20px; height: 20px; flex: none; }
 .admin-row .grow .ph { display: grid; place-items: center; color: var(--blue); }
 .admin-row .grow .ph svg { width: 20px; height: 20px; }
 .source-chips { margin: 6px 0 12px; }
+.ok-text { color: var(--blue) !important; }
+.error-text { color: var(--danger) !important; }
+.copier-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.copier-steps ol { margin: 0; padding-inline-start: 20px; line-height: 1.6; }

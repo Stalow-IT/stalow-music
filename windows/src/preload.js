@@ -78,4 +78,9 @@ contextBridge.exposeInMainWorld('stalow', {
   adminDriveAdd: (a) => call('admin:driveAdd', a),
   adminDriveSet: (a) => call('admin:driveSet', a),
   adminAlbums: (id) => call('admin:albums', id),
+  adminCompare: (id) => call('admin:compare', id),
+  copierGet: () => call('admin:copierGet'),
+  copierSet: (url) => call('admin:copierSet', url),
+  copierClear: () => call('admin:copierClear'),
+  copyText: (text) => call('app:copyText', text),
 });

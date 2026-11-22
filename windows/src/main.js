@@ -147,10 +147,16 @@ const handlers = {
     await refreshDrive(); return r.item;
   },
   'admin:driveSet': async (a = {}) => {
-    const r = await accounts.call('drive.set', { id: String(a.id || ''), title: a.title, category: a.category, removed: a.removed, refresh: a.refresh === true || undefined });
+    const r = await accounts.call('drive.set', { id: String(a.id || ''), title: a.title, category: a.category, removed: a.removed, refresh: a.refresh === true || undefined, deleteCopy: a.deleteCopy === true || undefined });
     await refreshDrive(); return r.item;
   },
   'admin:albums': async (id) => accounts.call('catalog.albums', { id: String(id || '') }),
+  'admin:compare': async (id) => accounts.call('catalog.compare', { id: String(id || '') }),
+  // Copy to my Google Drive (the owner's own script copies everything added into their Drive)
+  'admin:copierGet': async () => accounts.call('drive.copier.get'),
+  'admin:copierSet': async (url) => accounts.call('drive.copier.set', { url: String(url || '').slice(0, 300) }),
+  'admin:copierClear': async () => accounts.call('drive.copier.clear'),
+  'app:copyText': async (text) => { require('electron').clipboard.writeText(String(text || '').slice(0, 100000)); return true; },
   'admin:set': async (entry) => {
     const e = entry || {};
     await accounts.setEntry({ id: String(e.id || ''), name: String(e.name || '').slice(0, 200), thumbnail: String(e.thumbnail || ''), category: String(e.category || ''), removed: e.removed === true });

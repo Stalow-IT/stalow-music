@@ -247,11 +247,14 @@ PAGES.drive = async () => {
   let items;
   try { items = await stalow.adminDriveAll(); } catch (e) { page('google_drive', group('', row(t('admin_failed', e.message), ''))); return; }
   const act = (fn) => async (ev) => { ev.target.disabled = true; try { await fn(); } catch (e) { failed(e); } PAGES.drive(); };
+  const copierBox = el('div', { class: 'item block' }, el('div', { class: 'muted', text: t('loading') }));
+  copierCard(copierBox);
   page('google_drive',
+    group(t('copier'), copierBox),
     group(t('drive_add'), el('div', { class: 'item block' }, driveAddForm({ onDone: () => PAGES.drive() }))),
     group(`${t('google_drive')} (${items.length})`, items.length ? items.map((d) => el('div', { class: 'item admin-row' + (d.removed ? ' removed' : '') },
       el('div', { class: 'grow' }, el('div', {}, el('div', { class: 'it', text: d.title }),
-        el('div', { class: 'id', text: [t(d.kind === 'folder' ? 'drive_folder' : 'drive_file'), t('drive_files', d.files.length), d.artistId ? t('albums') : ''].filter(Boolean).join(' · ') }))),
+        el('div', { class: 'id', text: [t(d.kind === 'folder' ? 'drive_folder' : 'drive_file'), t('drive_files', d.files.length), d.artistId ? t('albums') : ''].filter(Boolean).join(' · ') }), copyStatus(d))),
       el('div', { class: 'ctl' }, d.removed
         ? el('button', { class: 'btn secondary', text: t('admin_restore'), onclick: act(() => stalow.adminDriveSet({ id: d.id, removed: false })) })
         : [d.artistId ? '' : categorySelect(d.category, (c) => act(() => stalow.adminDriveSet({ id: d.id, category: c }))({ target: {} })),
@@ -273,6 +276,7 @@ function albumsDialog(r) {
           el('div', { class: 'ctl' }, el('button', { class: 'btn ' + (d.removed ? 'secondary' : 'danger'), text: t(d.removed ? 'admin_restore' : 'admin_delete'),
             onclick: async (ev) => { ev.target.disabled = true; try { await stalow.adminDriveSet({ id: d.id, removed: !d.removed }); } catch (e) { failed(e); } load(); } })))),
         el('div', { class: 'item block' }, el('div', { class: 'it', text: t('album_add_missing') }), driveAddForm({ artistId: r.id, onDone: load })),
+        drive.some((d) => !d.removed) ? el('div', { class: 'actions' }, el('button', { class: 'btn secondary', onclick: () => compare(r, body, load) }, icon('sync'), t('compare'))) : '',
         el('h3', { text: t('albums_on_ytm', albums.length) }),
         ...albums.map((a) => el('div', { class: 'item admin-row' },
           el('div', { class: 'grow' }, img(a.thumbnail, a.title), el('div', {}, el('div', { class: 'it', text: a.title }), el('div', { class: 'id', text: [a.year, t(a.kind === 'single' ? 'single' : 'album')].filter(Boolean).join(' · ') }))))));
@@ -285,4 +289,62 @@ function albumsDialog(r) {
   document.body.append(dlg);
   dlg.showModal();
   load();
+}
+
+/** Where an item's copy in the owner's Google Drive stands. */
+function copyStatus(d) {
+  if (!d.copyStatus) return '';
+  const text = d.copyStatus === 'copying' ? t('copy_copying') : d.copyStatus === 'done' ? t('copy_done') : t('copy_failed', d.copyError || '');
+  return el('div', { class: 'id ' + (d.copyStatus === 'failed' ? 'error-text' : 'ok-text'), text });
+}
+
+/** Copy to my Google Drive: the steps, the script to install, and the link to connect (owner only). */
+async function copierCard(box) {
+  let c;
+  try { c = await stalow.copierGet(); } catch (e) { box.replaceChildren(el('div', { class: 'muted', text: t('admin_failed', e.message) })); return; }
+  const again = () => copierCard(box);
+  if (c.connected) {
+    box.replaceChildren(el('div', { class: 'it ok-text', text: t('copier_on') }),
+      el('div', { class: 'actions' },
+        c.rootUrl ? el('button', { class: 'btn secondary', text: t('copier_open'), onclick: () => stalow.openExternal(c.rootUrl) }) : '',
+        c.owner ? el('button', { class: 'btn danger', text: t('copier_disconnect'), onclick: async () => { try { await stalow.copierClear(); } catch (e) { failed(e); } again(); } }) : ''));
+    return;
+  }
+  if (!c.owner) { box.replaceChildren(el('div', { class: 'muted', text: t('copier_owner_only') })); return; }
+  const url = el('input', { class: 'searchbox', type: 'url', placeholder: t('copier_url'), 'aria-label': t('copier_url') });
+  const msg = el('div', { class: 'muted' });
+  const steps = el('div', { class: 'copier-steps', hidden: true },
+    el('ol', {}, ...[1, 2, 3, 4].map((n) => el('li', { text: t('copier_step' + n) }))),
+    el('div', { class: 'actions' },
+      el('button', { class: 'btn secondary', text: t('copier_copy_script'), onclick: async () => { await stalow.copyText(c.script); msg.textContent = t('copier_copied'); } }),
+      el('button', { class: 'btn secondary', text: 'script.google.com', onclick: () => stalow.openExternal('https://script.google.com/home/projects/create') })),
+    url,
+    el('div', { class: 'actions' }, el('button', { class: 'btn', text: t('copier_connect'), onclick: async (ev) => {
+      if (!url.value.trim()) return;
+      ev.target.disabled = true; msg.textContent = t('loading');
+      try { await stalow.copierSet(url.value.trim()); msg.textContent = t('copier_connected'); setTimeout(again, 800); } catch (e) { msg.textContent = t('admin_failed', e.message); }
+      ev.target.disabled = false;
+    } })), msg);
+  const setup = el('button', { class: 'btn', text: t('copier_setup'), onclick: () => { steps.hidden = false; setup.hidden = true; } });
+  box.replaceChildren(el('div', { class: 'muted', text: t('copier_explain') }), setup, steps);
+}
+
+/** Compare: each Drive album of the artist against YouTube Music; one that is there now can be deleted from Drive. */
+async function compare(r, body, back) {
+  body.replaceChildren(el('div', { class: 'muted', text: t('loading') }));
+  let res;
+  try { res = await stalow.adminCompare(r.id); } catch (e) { body.replaceChildren(el('div', { class: 'muted', text: t('admin_failed', e.message) })); return; }
+  body.replaceChildren(
+    el('div', { class: 'actions' }, el('button', { class: 'btn secondary', onclick: back }, icon('back'), t('albums'))),
+    el('h3', { text: t('compare') }),
+    ...(res.results.length ? res.results.map(({ drive: d, match: m }) => el('div', { class: 'item admin-row' },
+      el('div', { class: 'grow' }, el('div', { class: 'ph' }, icon('queue')), el('div', {}, el('div', { class: 'it', text: d.title }),
+        el('div', { class: 'id ' + (m ? 'ok-text' : ''), text: m ? t('compare_found', [m.title, m.year].filter(Boolean).join(' · ')) : t('compare_not_yet') }))),
+      el('div', { class: 'ctl' }, m ? el('button', { class: 'btn danger', text: t('compare_delete'), onclick: async (ev) => {
+        if (!confirm(t('compare_delete_q', d.title))) return;
+        ev.target.disabled = true;
+        try { await stalow.adminDriveSet({ id: d.id, removed: true, deleteCopy: true }); } catch (e) { failed(e); }
+        compare(r, body, back);
+      } }) : '')))
+      : [el('div', { class: 'muted', text: t('compare_none') })]));
 }

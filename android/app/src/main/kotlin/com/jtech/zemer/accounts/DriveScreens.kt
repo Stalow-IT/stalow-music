@@ -213,6 +213,7 @@ fun DriveSettings(
 
     LazyColumn(Modifier.fillMaxSize().windowInsetsPadding(LocalPlayerAwareWindowInsets.current)) {
         item { Spacer(Modifier.height(SettingsScreenTopSpacing)) }
+        item { CopierCard() }
         item {
             Text(
                 stringResource(R.string.stalow_drive_explain), style = MaterialTheme.typography.bodyMedium,
@@ -235,6 +236,7 @@ fun DriveSettings(
                             stringResource(R.string.stalow_drive_files, d.files.size),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    CopyStatusLine(d)
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (d.removed) {
@@ -388,6 +390,87 @@ fun DriveHeroTile(item: DriveLibrary.Item, modifier: Modifier = Modifier, onClic
                 stringResource(R.string.stalow_drive) + " · " + stringResource(R.string.stalow_drive_files, item.files.size),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1,
             )
+        }
+    }
+}
+
+/** Where the item's copy in the owner's Google Drive stands. */
+@Composable
+fun CopyStatusLine(d: DriveLibrary.Item) {
+    val text = when (d.copyStatus) {
+        "copying" -> stringResource(R.string.stalow_copy_copying)
+        "done" -> stringResource(R.string.stalow_copy_done)
+        "failed" -> stringResource(R.string.stalow_copy_failed, d.copyError.orEmpty())
+        else -> return
+    }
+    Text(
+        text, style = MaterialTheme.typography.bodySmall,
+        color = if (d.copyStatus == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+    )
+}
+
+/**
+ * Copy to my Google Drive: the owner installs a small script in their Google account (the steps and the script are
+ * here) and pastes its link; from then on every added folder or file is copied into "Stalow Music" in their Drive
+ * and plays from there, so it stays even if the person who shared it deletes it.
+ */
+@Composable
+private fun CopierCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    var copier by remember { mutableStateOf<DriveLibrary.Copier?>(null) }
+    var url by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var showSteps by remember { mutableStateOf(false) }
+
+    fun run(block: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try { block(); copier = DriveLibrary.copier() } catch (e: Exception) {
+                context.toast(context.getString(R.string.stalow_failed, e.message ?: e.javaClass.simpleName), long = true)
+            }
+            busy = false
+        }
+    }
+    LaunchedEffect(Unit) { run {} }
+    val c = copier ?: return
+
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.stalow_copier), style = MaterialTheme.typography.titleMedium)
+            if (c.connected) {
+                Text(stringResource(R.string.stalow_copier_on), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    c.rootUrl?.let { link -> OutlinedButton(onClick = { uriHandler.openUri(link) }) { Text(stringResource(R.string.stalow_copier_open)) } }
+                    if (c.isOwner) TextButton(onClick = { run { DriveLibrary.disconnectCopier() } }, enabled = !busy) {
+                        Text(stringResource(R.string.stalow_copier_disconnect), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            } else if (!c.isOwner) {
+                Text(stringResource(R.string.stalow_copier_owner_only), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text(stringResource(R.string.stalow_copier_explain), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!showSteps) {
+                    Button(onClick = { showSteps = true }) { Text(stringResource(R.string.stalow_copier_setup)) }
+                } else {
+                    Text(stringResource(R.string.stalow_copier_steps), style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(c.script))
+                            context.toast(R.string.stalow_copier_copied)
+                        }) { Text(stringResource(R.string.stalow_copier_copy_script)) }
+                        OutlinedButton(onClick = { uriHandler.openUri("https://script.google.com/home/projects/create") }) { Text("script.google.com") }
+                    }
+                    OutlinedTextField(url, { url = it }, singleLine = true, label = { Text(stringResource(R.string.stalow_copier_url)) }, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { run { DriveLibrary.connectCopier(url); context.toast(R.string.stalow_copier_connected) } }, enabled = !busy && url.isNotBlank()) {
+                        Text(stringResource(R.string.stalow_copier_connect))
+                    }
+                }
+            }
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         }
     }
 }

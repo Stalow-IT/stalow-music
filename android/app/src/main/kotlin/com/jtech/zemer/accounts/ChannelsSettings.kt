@@ -452,6 +452,7 @@ private fun AlbumsDialog(row: CatalogRow, onDismiss: () -> Unit) {
     var link by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var year by remember { mutableStateOf("") }
+    var comparing by remember { mutableStateOf(false) }
 
     fun run(block: suspend () -> Unit) {
         if (busy) return
@@ -468,6 +469,11 @@ private fun AlbumsDialog(row: CatalogRow, onDismiss: () -> Unit) {
         }
     }
     LaunchedEffect(Unit) { run {} }
+
+    if (comparing) CompareDialog(row) { changed ->
+        comparing = false
+        if (changed) run {}
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -521,6 +527,13 @@ private fun AlbumsDialog(row: CatalogRow, onDismiss: () -> Unit) {
                     }
                 }
                 item {
+                    // Compare: which Drive albums YouTube Music now has (their Drive copy can then go)
+                    if (drive.any { !it.removed }) OutlinedButton(onClick = { comparing = true }, enabled = !busy, modifier = Modifier.padding(top = 6.dp)) {
+                        Icon(painterResource(R.drawable.sync), null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.stalow_compare))
+                    }
+                }
+                item {
                     Text(
                         stringResource(R.string.stalow_albums_youtube, albums?.size ?: 0),
                         style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 10.dp),
@@ -547,4 +560,78 @@ private fun AlbumsDialog(row: CatalogRow, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) } },
     )
+}
+
+/** Compare: each Drive album of the artist against YouTube Music; one that is there now can be deleted from Drive. */
+@Composable
+private fun CompareDialog(row: CatalogRow, onDone: (changed: Boolean) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var results by remember { mutableStateOf<List<DriveLibrary.Compared>?>(null) }
+    var busy by remember { mutableStateOf(true) }
+    var changed by remember { mutableStateOf(false) }
+    var confirm by remember { mutableStateOf<DriveLibrary.Compared?>(null) }
+    fun load() {
+        busy = true
+        scope.launch {
+            results = try { DriveLibrary.compare(row.id) } catch (e: Exception) {
+                context.toast(context.getString(R.string.stalow_failed, e.message ?: e.javaClass.simpleName), long = true); results ?: emptyList()
+            }
+            busy = false
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    AlertDialog(
+        onDismissRequest = { onDone(changed) },
+        title = { Text(stringResource(R.string.stalow_compare)) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 480.dp)) {
+                if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(bottom = 8.dp)) }
+                if (results?.isEmpty() == true) item { Text(stringResource(R.string.stalow_compare_none)) }
+                items(results.orEmpty(), key = { it.item.id }) { r ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Text(r.item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        val m = r.match
+                        if (m == null) {
+                            Text(stringResource(R.string.stalow_compare_not_yet), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        } else {
+                            Text(
+                                stringResource(R.string.stalow_compare_found, listOfNotNull(m.title, m.year?.toString()).joinToString(" · ")),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                            )
+                            TextButton(onClick = { confirm = r }, enabled = !busy) {
+                                Text(stringResource(R.string.stalow_compare_delete), color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onDone(changed) }) { Text(stringResource(android.R.string.ok)) } },
+    )
+
+    confirm?.let { r ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            text = { Text(stringResource(R.string.stalow_compare_delete_q, r.item.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirm = null
+                    busy = true
+                    scope.launch {
+                        try {
+                            DriveLibrary.remove(r.item.id, deleteCopy = true)
+                            changed = true
+                            context.toast(R.string.stalow_channels_removed)
+                        } catch (e: Exception) {
+                            context.toast(context.getString(R.string.stalow_failed, e.message ?: e.javaClass.simpleName), long = true)
+                        }
+                        load()
+                    }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text(stringResource(android.R.string.cancel)) } },
+        )
+    }
 }
