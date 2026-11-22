@@ -183,6 +183,7 @@ fun HomeScreen(
     val forgottenFavorites = homeUiState.forgottenFavorites
     val keepListening = homeUiState.keepListening
     val driveItems by com.jtech.zemer.accounts.DriveLibrary.items.collectAsState()
+    val sourceFilter = com.jtech.zemer.accounts.rememberSourceFilter()
     LaunchedEffect(Unit) { com.jtech.zemer.accounts.DriveLibrary.refresh() }
     val mostPlayed by remember {
         database.mostPlayedSongs(
@@ -316,6 +317,10 @@ fun HomeScreen(
     val uniqueForgottenFavorites = remember(forgottenFavorites) { forgottenFavorites.distinctBy { it.id } }
     // Cap the Home row; the full list lives behind "See all" (latest_releases screen).
     val latestReleasesCapped = remember(latestReleases) { latestReleases.take(12) }
+    val homeNew: List<Any> = remember(latestReleasesCapped, driveItems, sourceFilter) {
+        (if (sourceFilter.showsDrive) driveItems.asReversed().take(6) else emptyList<Any>()) +
+            (if (sourceFilter.showsYouTube) latestReleasesCapped else emptyList())
+    }
     val uniqueFeaturedArtists = remember(featuredArtists) { featuredArtists.distinctBy { it.id } }
     val uniqueFeaturedAlbums = remember(featuredAlbums) { featuredAlbums.distinctBy { it.id } }
     val uniqueFeaturedVideos = remember(featuredVideos) { featuredVideos.distinctBy { it.id } }
@@ -729,30 +734,10 @@ fun HomeScreen(
                     }
                 }
 
-                // Stalow: Google Drive folders and files the admins added; a tap opens the folder.
-                // (albums attached to an artist show on that artist's page instead)
-                driveItems.filter { it.artistId == null }.takeIf { it.isNotEmpty() }?.let { drive ->
-                    item(key = "drive_title", contentType = "header") {
-                        NavigationTitle(
-                            title = stringResource(R.string.stalow_drive),
-                            modifier = Modifier.animateItem()
-                        )
-                    }
-                    item(key = "drive_list", contentType = "drive") {
-                        androidx.compose.foundation.lazy.LazyRow(
-                            contentPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues(),
-                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).animateItem(),
-                        ) {
-                            items(drive, key = { "drive_" + it.id }) { d ->
-                                com.jtech.zemer.accounts.DriveCard(d) { navController.navigate("drive/${d.id}") }
-                            }
-                        }
-                    }
-                }
-
                 // Stalow: New releases, near the top: a few, the arrow opens the full list.
-                latestReleasesCapped.takeIf { it.isNotEmpty() }?.let { releases ->
+                // Google Drive folders the admins added are mixed in first, newest added first (the source
+                // chips on the other screens decide whether they show here too).
+                homeNew.takeIf { it.isNotEmpty() }?.let { releases ->
                     item(key = "latest_releases_title", contentType = "header") {
                         NavigationTitle(
                             title = stringResource(R.string.latest_releases),
@@ -781,8 +766,13 @@ fun HomeScreen(
                                 .height(180.dp)
                                 .animateItem(),
                         ) { index ->
+                            val entry = releases[index]
+                            if (entry is com.jtech.zemer.accounts.DriveLibrary.Item) {
+                                com.jtech.zemer.accounts.DriveHeroTile(entry, Modifier.maskClip(MaterialTheme.shapes.extraLarge)) { navController.navigate("drive/${entry.id}") }
+                                return@HorizontalMultiBrowseCarousel
+                            }
                             LatestReleaseCarouselItem(
-                                release = releases[index],
+                                release = entry as com.jtech.zemer.latestreleases.LatestRelease,
                                 navController = navController,
                                 playerConnection = playerConnection,
                                 mediaMetadata = mediaMetadata,

@@ -77,8 +77,8 @@ private fun sectionLabel(category: String): String = stringResource(
 
 /** A Drive folder or file on Home. */
 @Composable
-fun DriveCard(item: DriveLibrary.Item, onClick: () -> Unit) {
-    Column(Modifier.width(140.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)) {
+fun DriveCard(item: DriveLibrary.Item, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(modifier.width(140.dp).clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick)) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(140.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.secondaryContainer),
@@ -311,6 +311,83 @@ private fun SectionDropdown(category: String, enabled: Boolean, onPick: (String)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (c in CatalogOverrides.CATEGORIES) DropdownMenuItem(text = { Text(sectionLabel(c)) }, onClick = { open = false; if (c != category) onPick(c) })
+        }
+    }
+}
+
+/** One Google Drive file in a mixed list (search): a tap plays its folder from this file on. */
+@Composable
+fun DriveFileRow(item: DriveLibrary.Item, file: DriveLibrary.DriveFile, modifier: Modifier = Modifier) {
+    val playerConnection = LocalPlayerConnection.current ?: return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.fillMaxWidth().clickable {
+            playerConnection.playQueue(
+                ListQueue(
+                    title = item.title,
+                    items = item.files.map { DriveMedia.metadata(it, item).toMediaItem() },
+                    startIndex = item.files.indexOf(file).coerceAtLeast(0),
+                ),
+            )
+        }.padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            Icon(painterResource(if (file.isVideo) R.drawable.ondemand_video else R.drawable.music_note), null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(file.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(R.string.stalow_drive) + " · " + item.title,
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** A Google Drive folder as a row in a list (Podcasts / Shiurim / Videos in list view). */
+@Composable
+fun DriveListItem(item: DriveLibrary.Item, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            Icon(painterResource(R.drawable.library_music), null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(R.string.stalow_drive) + " · " + stringResource(R.string.stalow_drive_files, item.files.size),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+            )
+        }
+    }
+}
+
+/** A Google Drive folder as a big tile in the New releases row on Home. */
+@Composable
+fun DriveHeroTile(item: DriveLibrary.Item, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.secondaryContainer).clickable(onClick = onClick),
+    ) {
+        Icon(
+            painterResource(R.drawable.library_music), null,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(56.dp).align(Alignment.Center),
+        )
+        Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+            Text(item.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(R.string.stalow_drive) + " · " + stringResource(R.string.stalow_drive_files, item.files.size),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1,
+            )
         }
     }
 }

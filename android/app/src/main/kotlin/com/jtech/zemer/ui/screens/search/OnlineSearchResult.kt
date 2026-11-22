@@ -105,6 +105,11 @@ fun OnlineSearchResult(
 
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
+    val sourceFilter = com.jtech.zemer.accounts.rememberSourceFilter()
+    val driveAll by com.jtech.zemer.accounts.DriveLibrary.items.collectAsState()
+    val (driveFolders, driveFiles) = remember(driveAll, viewModel.query) {
+        com.jtech.zemer.accounts.driveSearch(viewModel.query)
+    }
     val chipsFocusRequester = remember { FocusRequester() }
     val firstResultFocusRequester = remember { FocusRequester() }
 
@@ -338,7 +343,27 @@ fun OnlineSearchResult(
                     .animateItem(),
             )
         }
-        if (searchFilter == null) {
+        // Stalow: Google Drive folders and files that match, mixed into the results (the chips narrow them)
+        item(key = "source_filter") { com.jtech.zemer.accounts.SourceFilterChips() }
+        if (sourceFilter.showsDrive && (driveFolders.isNotEmpty() || driveFiles.isNotEmpty()) && searchFilter in listOf(null, FILTER_SONG, FILTER_ALBUM)) {
+            item(key = "drive_results_title") {
+                com.jtech.zemer.ui.component.NavigationTitle(title = stringResource(R.string.stalow_drive), modifier = Modifier.animateItem())
+            }
+            if (driveFolders.isNotEmpty() && searchFilter != FILTER_SONG) item(key = "drive_results_folders") {
+                androidx.compose.foundation.lazy.LazyRow(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp).animateItem(),
+                ) {
+                    items(driveFolders.size, key = { "drive_f_" + driveFolders[it].id }) { i ->
+                        com.jtech.zemer.accounts.DriveCard(driveFolders[i]) { navController.navigate("drive/${driveFolders[i].id}") }
+                    }
+                }
+            }
+            if (searchFilter != FILTER_ALBUM) for ((d, f) in driveFiles) item(key = "drive_file_${f.id}") {
+                com.jtech.zemer.accounts.DriveFileRow(d, f, Modifier.animateItem())
+            }
+        }
+        if (sourceFilter.showsYouTube) if (searchFilter == null) {
             when {
                 summaryError != null -> {
                     item {

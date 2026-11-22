@@ -393,4 +393,5 @@
     <string name="stalow_albums_youtube">ב-YouTube Music (%1$d)</string>
     <string name="stalow_single">סינגל</string>
     <string name="stalow_album">אלבום</string>
+    <string name="stalow_source_youtube">YouTube Music</string>
 </resources>

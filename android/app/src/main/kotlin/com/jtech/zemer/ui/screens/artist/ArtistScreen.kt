@@ -148,10 +148,16 @@ fun ArtistScreen(
     val driveAlbums = remember(driveItems, viewModel.artistId) {
         driveItems.filter { it.artistId == viewModel.artistId }.sortedByDescending { it.year ?: 0 }
     }
+    val sourceFilter = com.jtech.zemer.accounts.rememberSourceFilter().let { if (driveAlbums.isEmpty()) com.jtech.zemer.accounts.SourceFilter.ALL else it }
     val unknownArtistTitle = stringResource(R.string.unknown_artist)
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     val artistPage = viewModel.artistPage
+    // Stalow: the row Google Drive albums join (the Albums row; else the first row of albums)
+    val albumSectionTitle = artistPage?.sections?.let { secs ->
+        (secs.firstOrNull { it.items.firstOrNull() is AlbumItem && Regex("album|אלבום", RegexOption.IGNORE_CASE).containsMatchIn(it.title) }
+            ?: secs.firstOrNull { it.items.firstOrNull() is AlbumItem })?.title
+    }
     val isLoadingArtist = viewModel.isLoading
     val libraryArtist by viewModel.libraryArtist.collectAsState()
     // Bare artist row for the subscribe/bookmark state (works for non-whitelisted podcast channels).
@@ -386,10 +392,15 @@ fun ArtistScreen(
                     )
                 }
 
-                // Stalow: albums an admin added from Google Drive (missing on YouTube Music), newest first.
-                driveAlbums.takeIf { it.isNotEmpty() }?.let { albums ->
+                // Stalow: Google Drive albums of this artist (missing on YouTube Music) are mixed into the Albums
+                // row by year; the chips narrow the page to one source. Without an Albums row on YouTube Music (or
+                // with "Google Drive" chosen) they get an Albums row of their own.
+                if (driveAlbums.isNotEmpty()) {
+                    item(key = "source_filter") { com.jtech.zemer.accounts.SourceFilterChips(Modifier.animateItem()) }
+                }
+                if (driveAlbums.isNotEmpty() && (!sourceFilter.showsYouTube || albumSectionTitle == null)) {
                     item(key = "drive_albums_title") {
-                        NavigationTitle(title = stringResource(R.string.stalow_albums_drive), modifier = Modifier.animateItem())
+                        NavigationTitle(title = stringResource(R.string.albums), modifier = Modifier.animateItem())
                     }
                     item(key = "drive_albums_list") {
                         LazyRow(
@@ -397,7 +408,7 @@ fun ArtistScreen(
                             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
                             modifier = Modifier.padding(horizontal = 12.dp).animateItem(),
                         ) {
-                            items(albums, key = { "drive_" + it.id }) { d ->
+                            items(driveAlbums, key = { "drive_" + it.id }) { d ->
                                 com.jtech.zemer.accounts.DriveCard(d) { navController.navigate("drive/${d.id}") }
                             }
                         }
@@ -536,7 +547,7 @@ fun ArtistScreen(
                         else artistPage?.sections.orEmpty()
                             .filterNot { it.title.contains("video", true) || it.title.contains("short", true) }
                             .flatMap { it.items }.filterIsInstance<SongItem>().map { it.id }.toSet()
-                    artistPage?.sections?.fastForEach { section ->
+                    artistPage?.sections?.takeIf { sourceFilter.showsYouTube }?.fastForEach { section ->
                         val isVideoSection = section.title.contains("video", ignoreCase = true) ||
                             section.title.contains("short", ignoreCase = true)
                         val distinctItems = section.items.distinctBy { it.id }
@@ -639,10 +650,21 @@ fun ArtistScreen(
                                 LazyRow(
                                     contentPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues(),
                                 ) {
+                                    // Stalow: this artist's Google Drive albums join the Albums row, newest first
+                                    val rowItems: List<Any> = if (section.title == albumSectionTitle && driveAlbums.isNotEmpty())
+                                        (displayItems + driveAlbums).sortedByDescending { e ->
+                                            if (e is com.jtech.zemer.accounts.DriveLibrary.Item) e.year ?: 0 else (e as? AlbumItem)?.year ?: 0
+                                        }
+                                    else displayItems
                                     itemsIndexed(
-                                        items = displayItems,
-                                        key = { index, item -> "youtube_album_${item.id}_$index" },
-                                    ) { index, item ->
+                                        items = rowItems,
+                                        key = { index, e -> if (e is com.jtech.zemer.accounts.DriveLibrary.Item) "drive_${e.id}" else "youtube_album_${(e as com.metrolist.innertube.models.YTItem).id}_$index" },
+                                    ) { index, entry ->
+                                        if (entry is com.jtech.zemer.accounts.DriveLibrary.Item) {
+                                            com.jtech.zemer.accounts.DriveCard(entry, Modifier.padding(horizontal = 6.dp)) { navController.navigate("drive/${entry.id}") }
+                                            return@itemsIndexed
+                                        }
+                                        val item = entry as com.metrolist.innertube.models.YTItem
                                         if (isVideoSection && index >= displayItems.size - 3 && visibleCount < distinctItems.size) {
                                             visibleCounts[section.title] = minOf(visibleCount + 6, distinctItems.size)
                                         }

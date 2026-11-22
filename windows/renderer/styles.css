@@ -279,3 +279,4 @@ svg { width: 20px; height: 20px; flex: none; }
 .admin-results h3 { margin: 14px 0 6px; font-size: 14px; color: var(--blue); }
 .admin-row .grow .ph { display: grid; place-items: center; color: var(--blue); }
 .admin-row .grow .ph svg { width: 20px; height: 20px; }
+.source-chips { margin: 6px 0 12px; }
