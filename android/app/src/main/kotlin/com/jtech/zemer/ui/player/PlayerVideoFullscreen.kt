@@ -10,6 +10,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -112,6 +115,35 @@ fun PlayerVideoFullscreen(onExit: () -> Unit) {
         }
     }
 
+    // Tap-to-seek (see the surface's taps below): +1 right / -1 left, the running total for the bubble.
+    var seekSide by remember { mutableStateOf(0) }
+    var seekTotalMs by remember { mutableLongStateOf(0L) }
+    var lastSeekTapAt by remember { mutableLongStateOf(0L) }
+    var seekBubbleVisible by remember { mutableStateOf(false) }
+    fun seekSideOf(x: Float, width: Float): Int = when {
+        x < width * 0.4f -> -1
+        x > width * 0.6f -> 1
+        else -> 0
+    }
+    fun seekBy(side: Int) {
+        val now = System.currentTimeMillis()
+        if (side != seekSide || now - lastSeekTapAt >= 1000) seekTotalMs = 0L
+        seekSide = side
+        lastSeekTapAt = now
+        seekTotalMs += 10_000L
+        val pos = playerConnection.currentPositionMs()
+        val dur = playerConnection.currentDurationMs()
+        val target = if (side > 0) {
+            if (dur != C.TIME_UNSET && dur > 0) minOf(pos + 10_000L, dur - 500L) else pos + 10_000L
+        } else (pos - 10_000L).coerceAtLeast(0L)
+        playerConnection.seekTo(target)
+        position = target
+        seekBubbleVisible = true
+    }
+    LaunchedEffect(seekBubbleVisible, lastSeekTapAt) {
+        if (seekBubbleVisible) { delay(900); seekBubbleVisible = false }
+    }
+
     LaunchedEffect(Unit) {
         while (isActive) {
             position = playerConnection.currentPositionMs()
@@ -133,12 +165,44 @@ fun PlayerVideoFullscreen(onExit: () -> Unit) {
             .fillMaxSize()
             // Fullscreen video backdrop: the theme's scrim token, never a literal.
             .background(MaterialTheme.colorScheme.scrim)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) { controlsVisible = !controlsVisible },
+            // Like YouTube: double-tap the right side to go 10 s forward, the left side 10 s back; each
+            // further quick tap on that side adds 10 s more (twice = 20 s). A tap in the middle (or a single
+            // tap) shows / hides the controls.
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { offset ->
+                        val side = seekSideOf(offset.x, size.width.toFloat())
+                        val now = System.currentTimeMillis()
+                        if (side != 0 && side == seekSide && now - lastSeekTapAt < 1000) {
+                            seekBy(side)
+                        } else {
+                            controlsVisible = !controlsVisible
+                        }
+                    },
+                    onDoubleTap = { offset ->
+                        val side = seekSideOf(offset.x, size.width.toFloat())
+                        if (side == 0) controlsVisible = !controlsVisible else seekBy(side)
+                    },
+                )
+            },
         contentAlignment = Alignment.Center,
     ) {
+        // The "+20 s" bubble on the side that was tapped.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = seekBubbleVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(if (seekSide > 0) Alignment.CenterEnd else Alignment.CenterStart).padding(horizontal = 48.dp).zIndex(2f),
+        ) {
+            Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.55f)) {
+                Text(
+                    text = (if (seekSide > 0) "+" else "−") + (seekTotalMs / 1000) + " s",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                )
+            }
+        }
         PlayerVideoSurface(
             // Fill the screen; PlayerVideoSurface fits the video to its real aspect within (16:9 for
             // DIRECT, so this is visually unchanged there).

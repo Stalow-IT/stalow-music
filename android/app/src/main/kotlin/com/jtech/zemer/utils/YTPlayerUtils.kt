@@ -54,6 +54,14 @@ object YTPlayerUtils {
         webRemixFailedIds.add(videoId)
     }
 
+    // Stalow: clients whose stream for a video crawled (load timeouts, a few KB per 15 s) — the next
+    // resolution of that video skips them (see MusicService's slow-stream recovery), unless no other is left.
+    private val slowClients = java.util.concurrent.ConcurrentHashMap<String, MutableSet<String>>()
+
+    fun markSlowClient(videoId: String, clientName: String) {
+        slowClients.getOrPut(videoId) { java.util.concurrent.ConcurrentHashMap.newKeySet() }.add(clientName)
+    }
+
     /**
      * Cleared when the cipher recovers (player config refreshed after a stream rejection): the
      * prior WEB_REMIX failures were caused by the stale cipher, so let resolution try WEB_REMIX
@@ -270,10 +278,18 @@ object YTPlayerUtils {
                 client = mainClient
                 streamPlayerResponse = mainPlayerResponse
                 Timber.tag(TAG).d( "--- Trying streams from main client: ${client.clientName} ---")
+                if (client.clientName in slowClients[videoId].orEmpty() && fallbackClients.isNotEmpty()) {
+                    Timber.tag(TAG).d("Skipping main ${client.clientName} - its stream for this video crawled")
+                    continue
+                }
             } else {
                 // after main client use fallback clients
                 client = fallbackClients[clientIndex]
                 Timber.tag(TAG).d( "--- Trying fallback client ${clientIndex + 1}/${fallbackClients.size}: ${client.clientName} ---")
+                if (client.clientName in slowClients[videoId].orEmpty() && clientIndex < fallbackClients.size - 1) {
+                    Timber.tag(TAG).d("Skipping ${client.clientName} - its stream for this video crawled")
+                    continue
+                }
 
                 if (client.loginRequired && !isLoggedIn) {
                     Timber.tag(TAG).d( "Skipping ${client.clientName} - requires login but not authenticated")

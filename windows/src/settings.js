@@ -19,6 +19,7 @@ const SCHEMA = {
   showRecentlyPlayed: [true, bool],
   showGenres: [true, bool],
   startPage: ['home', oneOf('home', 'search', 'artists', 'queue')],
+  sourceFilter: ['all', oneOf('all', 'youtube', 'drive')], // the lists' source chips: everything, YouTube Music only, Google Drive only
   // Player & audio
   audioQuality: ['auto', oneOf('auto', 'high', 'low')],
   audioNormalization: [true, bool],

@@ -99,6 +99,7 @@ constructor(
      * collection re-tap that enqueues nothing must not report downloads.
      */
     fun downloadToMediaStore(song: com.jtech.zemer.db.entities.Song, fromUser: Boolean = true) {
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(song.id)) return // Drive files stream from Drive; saving them is not supported yet
         mediaStoreDownloadManager.downloadSong(song, fromUser)
     }
 
@@ -113,6 +114,7 @@ constructor(
     ) {
         // Stalow: every download is the sound only, also for videos and podcasts (smaller, and it is what
         // the app plays offline). Every "download video" path in the app lands here.
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(song.id)) return
         mediaStoreDownloadManager.downloadSong(song, fromUser)
     }
 
@@ -122,6 +124,7 @@ constructor(
      * audio is replaced by the video (which has the sound too, and plays as audio when video is off).
      */
     suspend fun downloadVideoFile(song: com.jtech.zemer.db.entities.Song, requestedQuality: String?) {
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(song.id)) return
         if (song.song.isDownloaded && !song.song.isVideo) removeDownload(song.id)
         val fresh = database.getSongByIdBlocking(song.id) ?: song
         mediaStoreDownloadManager.downloadVideo(fresh, fromUser = true, requestedQuality = requestedQuality)

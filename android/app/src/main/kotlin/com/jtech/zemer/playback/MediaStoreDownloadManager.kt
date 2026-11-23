@@ -966,6 +966,8 @@ constructor(
         var lastUpdate = 0L
         var lastProgress = 0f
         return { downloaded, total ->
+            // Stalow: between SABR responses, give way to what is playing while it is short of buffer.
+            PlaybackBandwidth.blockWhileNeeded(15_000)
             val progress = if (total > 0) downloaded.toFloat() / total.toFloat() else 0f
             val now = System.currentTimeMillis()
             if (now - lastUpdate >= PROGRESS_UPDATE_INTERVAL_MS ||
@@ -1101,6 +1103,8 @@ constructor(
                     ensureActive()
                     output.write(buffer, 0, bytesRead)
                     totalBytesRead += bytesRead
+                    // Stalow: give way to what is playing while it is short of buffer (see PlaybackBandwidth).
+                    if (PlaybackBandwidth.needed) kotlinx.coroutines.delay(PlaybackBandwidth.TRICKLE_DELAY_MS)
 
                     // Throttle progress updates to avoid notification rate limiting
                     // Update at most every 250ms OR when progress changes by 2%+

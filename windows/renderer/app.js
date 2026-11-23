@@ -86,7 +86,8 @@ function playQueue(songs, start = 0, radioSeed = null) {
   state.queue = songs.slice();
   state.index = -1;
   state.order = null;
-  state.radio = newRadio(radioSeed || (songs.length && songs[songs.length - 1].id));
+  const seed = radioSeed || (songs.length && songs[songs.length - 1].id);
+  state.radio = isDrive(seed) ? null : newRadio(seed); // a Drive file has no YouTube radio
   if (S.shuffle && songs.length > 1) {
     // shuffle on: the chosen song first, the rest in random order (the original order is kept for "shuffle off")
     state.order = songs.slice();
@@ -120,6 +121,40 @@ function applyShuffleToQueue() {
   renderQueueIfOpen();
 }
 
+// ---------- Google Drive files the admins added (Settings > Google Drive), shared as "Anyone with the link" ----------
+const isDrive = (id) => typeof id === 'string' && id.startsWith('drive:');
+// played through the app's own stalow-drive address: the main process fetches it from Drive and tries again when Drive refuses
+const driveUrl = (id) => `stalow-drive://file/${encodeURIComponent(id.slice(6))}`;
+let driveItems = [];
+const fileTitle = (name) => (String(name).split(' / ').pop().replace(/\.[^.]+$/, '') || name);
+/** A Drive folder's (or file's) files as songs the queue can play. */
+const driveSongs = (item) => item.files.map((f) => ({ type: 'song', id: 'drive:' + f.id, title: fileTitle(f.name), artists: [{ id: null, name: item.title }], thumbnail: '', drive: true }));
+async function loadDrive() { try { driveItems = await stalow.drive(); } catch { /* keep the last list */ } }
+/** A Drive folder (or file) as a card, mixed into the usual card lists; it opens the folder. */
+function driveCard(d) {
+  return el('button', { class: 'card', onclick: () => go('drive', d.id) },
+    el('div', { class: 'ph drive-ph' }, icon(d.kind === 'folder' ? 'queue' : 'play')), el('div', { class: 't ellipsis', text: d.title }),
+    el('div', { class: 's muted ellipsis', text: [t('google_drive'), d.year, t('drive_files', d.files.length)].filter(Boolean).join(' · ') }));
+}
+const asCard = (d) => ({ ...d, type: 'drive' });
+/** The source chips on top of the mixed lists: everything, YouTube Music only, Google Drive only (one choice for the app). */
+const source = () => S.sourceFilter || 'all';
+const showsYouTube = () => source() !== 'drive';
+const showsDrive = () => source() !== 'youtube';
+function sourceChips() {
+  if (!driveItems.length) return '';
+  return el('div', { class: 'chips source-chips' }, [['all', 'cat_all'], ['youtube', 'source_youtube'], ['drive', 'google_drive']].map(([v, label]) =>
+    el('button', { class: 'chip' + (source() === v ? ' on' : ''), text: t(label), onclick: async () => { await setSetting('sourceFilter', v); rerenderAll(); } })));
+}
+/** Drive folders and files whose names match [q] (search). */
+function driveSearch(q) {
+  const text = q.trim().toLowerCase();
+  if (text.length < 2) return { folders: [], files: [] };
+  const folders = driveItems.filter((d) => d.kind === 'folder' && d.title.toLowerCase().includes(text));
+  const files = driveItems.flatMap((d) => d.files.filter((f) => f.name.toLowerCase().includes(text)).map((f) => ({ d, f }))).slice(0, 30);
+  return { folders, files };
+}
+
 // ---------- downloaded songs play from their file (also without internet) ----------
 let downloaded = new Map(); // id -> download entry (with a file: url)
 let jobs = []; // background downloads: { id, song, state: waiting|saving|failed, progress, duration }
@@ -133,6 +168,15 @@ let local = false; // true while the current song plays from its downloaded file
 /** One way to control playback, whether the song plays in YouTube Music's player or from a downloaded file. */
 const P = {
   async play(id) {
+    if (isDrive(id)) {
+      // a Google Drive file (Settings > Google Drive) streams straight from Drive
+      local = true;
+      stalow.pause().catch(() => {});
+      localAudio.src = driveUrl(id);
+      localAudio.volume = Number($('#vol').value);
+      // a refused load is reported by the audio element's error event (and tried once more there)
+      return localAudio.play().catch((e) => { if (e && e.name === 'NotSupportedError') return undefined; throw e; });
+    }
     const d = downloaded.get(id);
     if (d) {
       local = true;
@@ -152,6 +196,12 @@ const P = {
 function emitLocal(kind) {
   const cur = state.queue[state.index];
   if (!local || !cur) return;
+  if (kind === 'error' && isDrive(cur.id)) {
+    // one more go with the same song before moving on (Drive sometimes refuses a moment)
+    if (state.driveRetry !== cur.id) { state.driveRetry = cur.id; return setTimeout(() => { if (state.queue[state.index] === cur) P.play(cur.id).catch(() => {}); }, 1500); }
+    local = false;
+    return stalow.driveLastError().catch(() => '').then((why) => handlePlayerEvent({ state: 'error', id: cur.id, message: why || t('drive_play_failed') }));
+  }
   if (kind === 'error') { downloaded.delete(cur.id); local = false; return P.play(cur.id); } // the file is gone: play it online
   handlePlayerEvent({ state: kind, time: localAudio.currentTime, duration: Number.isFinite(localAudio.duration) ? localAudio.duration : 0, id: cur.id });
   if (kind === 'playing' || kind === 'paused' || kind === 'ended') stalow.setPlaying(kind === 'playing').catch(() => {});
@@ -167,7 +217,7 @@ localAudio.addEventListener('error', () => { if (localAudio.getAttribute('src'))
  * (each song takes about its own length to save), whatever is playing.
  */
 async function downloadSongs(songs) {
-  const list = (Array.isArray(songs) ? songs : [songs]).filter((x) => x && x.type !== 'artist' && !downloaded.has(x.id));
+  const list = (Array.isArray(songs) ? songs : [songs]).filter((x) => x && x.type !== 'artist' && !isDrive(x.id) && !downloaded.has(x.id));
   if (!list.length) return showNotice(t('download_all_saved'));
   try {
     const r = await stalow.download(list);
@@ -272,6 +322,19 @@ function rememberPlayed(song) {
   const keep = { type: 'song', id: song.id, title: song.title, artists: song.artists || [], album: song.album || (song.albumName ? { id: '', title: song.albumName } : null), thumbnail: song.thumbnail || '', duration: song.duration || null, playedAt: Date.now() };
   listenHistory = [keep, ...listenHistory.filter((s) => s && s.id !== song.id)].slice(0, 500);
   stalow.setData('history', listenHistory).catch(() => {});
+  // Home > Most played: count each play
+  const prev = plays.find((p) => p.id === song.id);
+  const entry = { ...keep, playTimes: [...((prev && prev.playTimes) || []), keep.playedAt].slice(-50) };
+  plays = [entry, ...plays.filter((p) => p && p.id !== song.id)].slice(0, 1000);
+  stalow.setData('plays', plays).catch(() => {});
+}
+let plays = [];
+async function loadPlays() { try { plays = await stalow.getData('plays'); } catch { plays = []; } if (!Array.isArray(plays)) plays = []; }
+/** The songs played most in the last 30 days, most first. */
+function mostPlayed(limit = 50) {
+  const since = Date.now() - 30 * 86400000;
+  return plays.map((p) => ({ p, n: (p.playTimes || []).filter((x) => x >= since).length })).filter((x) => x.n > 0)
+    .sort((a, b) => b.n - a.n || (b.p.playedAt || 0) - (a.p.playedAt || 0)).slice(0, limit).map((x) => x.p);
 }
 async function clearHistory() { listenHistory = []; await stalow.setData('history', []); }
 /** Artist ids from the recently played songs, most recent first. */
@@ -387,7 +450,7 @@ function next() {
   const loadMore = S.autoLoadMore && !(S.repeat === 'all' && S.disableLoadMoreWhenRepeatAll);
   if (loadMore) {
     const cur = state.queue[state.index];
-    if (!state.radio && cur) state.radio = newRadio(cur.id); // the radio ran out: start a new one from this song
+    if (!state.radio && cur && !isDrive(cur.id)) state.radio = newRadio(cur.id); // the radio ran out: start a new one from this song
     return topUpRadio(true);
   }
   if (S.repeat === 'all' && state.queue.length) return playAt(0);
@@ -571,16 +634,16 @@ function songRows(songs, { onPlay } = {}) {
   el('div', { class: 'ellipsis' }, el('div', { class: 'rt ellipsis', text: s.title }), el('div', { class: 'muted ellipsis', text: artistNames(s) })),
   el('span', { class: 'd', text: s.duration ? fmt(s.duration) : '' }),
   el('span', { class: 'add-group' },
-    downloadBadge(s),
+    isDrive(s.id) ? '' : downloadBadge(s),
     el('span', { class: 'add', role: 'button', title: t('play_next'), text: t('play_next'), onclick: (e) => { e.stopPropagation(); playNext(s); } }),
     el('span', { class: 'add', role: 'button', title: t('add_to_queue'), text: '+ ' + t('queue'), onclick: (e) => { e.stopPropagation(); addToQueue(s); } })))));
 }
-function cards(items) {
-  return el('div', { class: 'grid' }, items.map((it) => el('button', {
+function cards(items, { row = false } = {}) {
+  return el('div', { class: 'grid' + (row ? ' one-line' : '') }, items.map((it) => (it.type === 'drive' ? driveCard(it) : el('button', {
     class: 'card' + (it.type === 'artist' ? ' round' : ''),
     onclick: () => open(it),
   }, img(it.thumbnail, it.title, { isVideo: it.isVideo }), el('div', { class: 't ellipsis', text: it.title }),
-  el('div', { class: 's muted ellipsis', text: it.isChannel ? t('channel') : it.type === 'artist' ? t('artist') : it.type === 'album' ? [artistNames(it), it.year].filter(Boolean).join(' · ') || t('album') : it.type === 'playlist' ? t('playlist') : artistNames(it) }))));
+  el('div', { class: 's muted ellipsis', text: it.isChannel ? t('channel') : it.type === 'artist' ? t('artist') : it.type === 'album' ? [artistNames(it), it.year].filter(Boolean).join(' · ') || t('album') : it.type === 'playlist' ? t('playlist') : artistNames(it) })))));
 }
 function open(it) {
   // pass the card's picture along, used when the page itself has none
@@ -597,12 +660,14 @@ function approvedNote() {
 /** One category of approved channels (Podcasts, Shiurim or Videos); a card opens the channel's page. */
 async function channelsView(category) {
   const title = t(category);
-  const all = await stalow.channels(category, '');
+  await loadDrive();
+  // Google Drive folders put in this section are listed with the channels (the chips narrow the list)
+  const all = [...(showsYouTube() ? await stalow.channels(category, '') : []), ...(showsDrive() ? driveItems.filter((d) => d.category === category && !d.artistId).map(asCard) : [])];
   const filter = el('input', { class: 'searchbox', type: 'search', placeholder: t('filter_channels_hint', all.length) });
   const list = el('div');
   const show = (items) => list.replaceChildren(items.length ? cards(items) : el('div', { class: 'status', text: t('no_channels_match') }));
   filter.addEventListener('input', () => { const q = filter.value.trim().toLowerCase(); show(all.filter((c) => c.title.toLowerCase().includes(q))); });
-  view.replaceChildren(el('h1', { text: title }), filter, list);
+  view.replaceChildren(el('h1', { text: title }), sourceChips(), filter, list);
   show(all);
 }
 
@@ -612,6 +677,11 @@ const views = {
     const recentIds = recentArtistIds();
     const { artists } = await stalow.home(recentIds);
     const recent = S.showRecentlyPlayed ? listenHistory.slice(0, 12) : [];
+    const releases = await stalow.releases().catch(() => []);
+    const most = mostPlayed(12);
+    await loadDrive();
+    // Google Drive folders the admins added join New releases, newest added first
+    const homeNew = [...(showsDrive() ? driveItems.slice().reverse().slice(0, 6).map(asCard) : []), ...(showsYouTube() ? releases.slice(0, 12) : [])];
     const played = artists.filter((a) => recentIds.includes(a.id)).length;
     const offer = continueOffer();
     const cur = offer ? offer.queue[Math.min(offer.index | 0, offer.queue.length - 1)] : null;
@@ -622,12 +692,59 @@ const views = {
         el('div', { class: 'grow' }, el('div', { class: 'top-pic' }, img(cur.thumbnail, cur.title)),
           el('div', {}, el('div', { class: 'overline', text: t('continue_from', offer.device || t('your_phone')) }), el('div', { class: 'it', text: cur.title }), el('div', { class: 'id', text: artistNames(cur) }))),
         el('span', { class: 'btn' }, icon('play'), t('continue')))) : '',
-      recent.length ? sectionHead(t('keep_listening')) : '',
-      recent.length ? cards(recent) : '',
+      recent.length ? sectionHead(t('keep_listening'), () => go('recent')) : '',
+      recent.length ? cards(recent, { row: true }) : '',
+      homeNew.length ? sectionHead(t('new_releases'), () => go('releases')) : '',
+      homeNew.length ? cards(homeNew, { row: true }) : '',
+      most.length ? sectionHead(t('most_played'), () => go('mostPlayed')) : '',
+      most.length ? cards(most, { row: true }) : '',
       S.showGenres ? sectionHead(t('genres')) : '',
       S.showGenres ? el('div', { class: 'chips' }, HOME_GENRES.map((g) => el('button', { class: 'chip', text: g, onclick: () => go('search', g) }))) : '',
       sectionHead(played ? t('your_artists') : t('stalow_artists_for_you'), () => go('artists')), cards(artists),
       el('div', { class: 'actions' }, el('button', { class: 'btn secondary', text: t('show_other_artists'), onclick: () => views.home() })));
+  },
+  /** One Google Drive folder (or file): Play all, Shuffle, find, and its files. */
+  async drive(id) {
+    let d = driveItems.find((x) => x.id === id);
+    if (!d) { await loadDrive(); d = driveItems.find((x) => x.id === id); }
+    if (!d) return status(t('drive_missing'));
+    const songs = driveSongs(d);
+    const list = el('div');
+    const find = el('input', { class: 'searchbox', type: 'search', placeholder: t('drive_find') });
+    const show = () => {
+      const q = find.value.trim().toLowerCase();
+      const idx = songs.map((s, i) => i).filter((i) => !q || d.files[i].name.toLowerCase().includes(q));
+      list.replaceChildren(songRows(idx.map((i) => songs[i]), { onPlay: (k) => playQueue(songs, idx[k]) }));
+    };
+    find.addEventListener('input', show);
+    view.replaceChildren(el('h1', { text: d.title }),
+      el('p', { class: 'muted', text: [d.year, t('drive_files', songs.length)].filter(Boolean).join(' · ') }),
+      el('div', { class: 'actions' },
+        el('button', { class: 'btn', onclick: () => playQueue(songs, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(songs), 0) }, icon('shuffle'), t('shuffle'))),
+      songs.length > 12 ? find : '', list);
+    show();
+  },
+  // See all for the Home rows
+  async recent() {
+    const list = listenHistory.slice(0, 200);
+    view.replaceChildren(el('h1', { text: t('keep_listening') }),
+      list.length ? el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle'))) : '',
+      list.length ? songRows(list) : el('div', { class: 'status', text: t('nothing_playing') }));
+  },
+  async releases() {
+    view.replaceChildren(el('h1', { text: t('new_releases') }), el('div', { class: 'status', text: t('loading') }));
+    const list = await stalow.releases().catch(() => []);
+    view.replaceChildren(el('h1', { text: t('new_releases') }), el('p', { class: 'muted', text: t('new_releases_hint') }),
+      list.length ? cards(list) : el('div', { class: 'status', text: t('new_releases_none') }));
+  },
+  async mostPlayed() {
+    const list = mostPlayed(50);
+    view.replaceChildren(el('h1', { text: t('most_played') }), el('p', { class: 'muted', text: t('most_played_hint') }),
+      list.length ? el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => playQueue(list, 0) }, icon('play'), t('play')),
+        el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(list), 0) }, icon('shuffle'), t('shuffle'))) : '',
+      list.length ? songRows(list) : el('div', { class: 'status', text: t('most_played_none') }));
   },
   async search(q = '') {
     const box = el('input', { class: 'searchbox', type: 'search', placeholder: t('stalow_search_hint'), value: q });
@@ -645,8 +762,17 @@ const views = {
       rememberSearch(text);
       results.replaceChildren(el('div', { class: 'status', text: t('searching') }));
       try {
-        const r = await stalow.search(text);
+        const none = { artists: [], songs: [], albums: [], playlists: [] };
+        let ytError = null; // the Drive matches still show when YouTube Music's search fails
+        const r = showsYouTube() ? await stalow.search(text).catch((e) => { ytError = e; return none; }) : none;
         const parts = [];
+        // Google Drive folders and files that match, mixed into the results
+        const dr = showsDrive() ? driveSearch(text) : { folders: [], files: [] };
+        if (dr.files.length) {
+          const songs = dr.files.map(({ d, f }) => driveSongs(d).find((x) => x.id === 'drive:' + f.id));
+          parts.push(el('h2', { text: t('google_drive') }), songRows(songs, { onPlay: (i) => { const { d } = dr.files[i]; const all = driveSongs(d); playQueue(all, Math.max(0, all.findIndex((x) => x.id === songs[i].id))); } }));
+        }
+        if (dr.folders.length) parts.push(dr.files.length ? '' : el('h2', { text: t('google_drive') }), cards(dr.folders.map(asCard)));
         if (r.artists.length) {
           const top = r.artists[0];
           parts.push(el('h2', { class: 'overline', text: t('stalow_top_result') }),
@@ -659,12 +785,13 @@ const views = {
         if (r.artists.length) parts.push(el('h2', { text: t('artists') }), cards(r.artists.slice(0, 12)));
         if (r.albums.length) parts.push(el('h2', { text: t('albums') }), cards(r.albums.slice(0, 12)));
         if (r.playlists.length) parts.push(el('h2', { text: t('playlists') }), cards(r.playlists.slice(0, 12)));
+        if (ytError) parts.push(el('div', { class: 'status error', text: t('search_failed', ytError.message) }));
         results.replaceChildren(...(parts.length ? parts : [el('div', { class: 'status', text: t('nothing_matched') })]), approvedNote());
       } catch (e) { results.replaceChildren(el('div', { class: 'status error', text: t('search_failed', e.message) })); }
     };
     box.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
     box.addEventListener('input', () => { if (!box.value.trim()) showHistory(); });
-    view.replaceChildren(el('h1', { text: t('search') }), box, results);
+    view.replaceChildren(el('h1', { text: t('search') }), sourceChips(), box, results);
     box.focus();
     if (q) run(); else showHistory();
   },
@@ -689,6 +816,8 @@ const views = {
     if (p.notApproved) return status(t('artist_not_approved'));
     if (p.artist && !p.artist.thumbnail && arg.thumbnail) p.artist.thumbnail = arg.thumbnail;
     const songs = p.sections.flatMap((s) => s.items).filter((x) => x.type === 'song');
+    const driveAlbums = driveItems.filter((d) => d.artistId === id).sort((a, b) => (b.year || 0) - (a.year || 0));
+    const albumSection = p.sections.find((s) => s.items.some((x) => x.type === 'album') && /album|אלבום/i.test(s.title || '')) || p.sections.find((s) => s.items.some((x) => x.type === 'album'));
     view.replaceChildren(
       el('div', { class: 'head round' }, img(p.artist.thumbnail, p.artist.title), el('div', {},
         el('div', { class: 'overline', text: t(p.isChannel ? 'stalow_approved_channel' : 'stalow_approved_artist') }), el('h1', { text: p.artist.title }),
@@ -697,9 +826,14 @@ const views = {
           songs.length ? el('button', { class: 'btn secondary', onclick: () => playQueue(shuffled(songs), 0) }, icon('shuffle'), t('shuffle')) : '',
           songs.length ? el('button', { class: 'btn secondary', onclick: () => playQueue([songs[0]], 0, songs[0].id) }, icon('radio'), t('radio')) : '',
           songs.length ? el('button', { class: 'btn secondary', onclick: () => downloadSongs(songs) }, icon('backup'), t('download_all')) : ''))),
-      ...p.sections.flatMap((s) => {
+      driveAlbums.length ? sourceChips() : '',
+      // Drive albums of this artist join its Albums row by year (or get their own row)
+      driveAlbums.length && (!showsYouTube() || !albumSection) ? sectionHead(t('albums')) : '',
+      driveAlbums.length && (!showsYouTube() || !albumSection) ? cards(driveAlbums.map(asCard)) : '',
+      ...(showsYouTube() ? p.sections : []).flatMap((s) => {
         const sSongs = s.items.filter((x) => x.type === 'song');
-        const others = s.items.filter((x) => x.type !== 'song');
+        let others = s.items.filter((x) => x.type !== 'song');
+        if (s === albumSection && driveAlbums.length) others = [...others, ...driveAlbums.map(asCard)].sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0));
         const seeAll = s.more && s.items.length >= 6 ? () => go('shelf', { id, name: p.artist.title, title: s.title, more: s.more }) : null;
         return [sectionHead(s.title || t('more'), seeAll), sSongs.length ? songRows(sSongs) : '', others.length ? cards(others) : ''];
       }),
@@ -839,6 +973,8 @@ function queueList({ compact = false } = {}) {
 }
 
 /** Shows the current page again (after a setting that changes how pages look). */
+/** Shows the current page again, settings pages included (the source chips). */
+function rerenderAll() { if (currentView) go(currentView[0], currentView[1], false); }
 function rerender() { if (currentView && !['settingsPage', 'settings'].includes(currentView[0])) go(currentView[0], currentView[1], false); }
 function renderQueueIfOpen() {
   if (!currentView) return;

@@ -465,7 +465,7 @@ class MainActivity : ComponentActivity() {
         // Backgrounding reverts video mode to audio: an invisible muxed stream would keep downloading
         // and decoding (the same waste the lyrics-sheet revert exists for). Audio continues seamlessly;
         // orientation changes never pass here (configChanges handles them, no Activity restart).
-        playerConnection?.setVideoMode(false)
+        playerConnection?.setVideoMode(false, "app went to the background")
         try {
             unbindService(serviceConnection)
         } catch (e: IllegalArgumentException) {
@@ -674,6 +674,33 @@ class MainActivity : ComponentActivity() {
                 val unofficialCopyMessage by UnofficialCopy.message.collectAsState()
                 unofficialCopyMessage?.let {
                     UnofficialCopyScreen(it)
+                    return@ZemerTheme
+                }
+                // Stalow: nothing opens until an admin approves this device; on each start look again, and
+                // pick up the admins' channel changes (re-importing the lists when they changed)
+                val account by com.jtech.zemer.accounts.StalowAccount.state.collectAsState()
+                val accountLifecycle = LocalLifecycleOwner.current
+                DisposableEffect(accountLifecycle) {
+                    val check = {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            com.jtech.zemer.accounts.StalowAccount.refresh()
+                            if (com.jtech.zemer.accounts.StalowAccount.refreshCatalog()) syncUtils.resyncCatalog()
+                            else syncUtils.applyCatalogPictures()
+                            com.jtech.zemer.accounts.DriveLibrary.refresh()
+                        }
+                    }
+                    check()
+                    val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_START) check() }
+                    accountLifecycle.lifecycle.addObserver(observer)
+                    onDispose { accountLifecycle.lifecycle.removeObserver(observer) }
+                }
+                LaunchedEffect(account.status) {
+                    if (account.status == com.jtech.zemer.accounts.StalowAccount.Status.APPROVED &&
+                        com.jtech.zemer.accounts.StalowAccount.refreshCatalog()
+                    ) syncUtils.resyncCatalog()
+                }
+                if (account.status != com.jtech.zemer.accounts.StalowAccount.Status.APPROVED) {
+                    com.jtech.zemer.accounts.AccountGateScreen()
                     return@ZemerTheme
                 }
                 CompositionLocalProvider(
@@ -1494,6 +1521,16 @@ class MainActivity : ComponentActivity() {
                                         }
                                         navController.getBackStackEntry(Screens.Home.route)
                                             .savedStateHandle["shuffleNow"] = true
+                                    },
+                                )
+                                DrawerEntry(
+                                    label = R.string.stalow_bookmarks,
+                                    icon = R.drawable.bookmark,
+                                    selected = navBackStackEntry?.destination?.route == "bookmarks",
+                                    canFocus = drawerState.isOpen,
+                                    onClick = {
+                                        coroutineScope.launch { drawerState.close() }
+                                        navController.navigate("bookmarks") { launchSingleTop = true }
                                     },
                                 )
                                 DrawerEntry(

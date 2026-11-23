@@ -23,7 +23,7 @@
     <string name="remote_history">Remote</string>
 
     <string name="unknown_artist">Unknown artist</string>
-    <string name="latest_releases">Latest Releases</string>
+    <string name="latest_releases">New releases</string>
     <string name="zemer_playlists">Stalow Music Playlists</string>
     <plurals name="n_hour">
         <item quantity="one">1 hour</item>

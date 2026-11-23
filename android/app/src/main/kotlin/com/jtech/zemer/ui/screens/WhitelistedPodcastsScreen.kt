@@ -76,15 +76,24 @@ fun WhitelistedPodcastsScreen(
     val isLoadingNewEpisodes by viewModel.isLoadingNewEpisodes.collectAsState()
 
     val hasHeaderSections = subscribedPodcasts.isNotEmpty() || newEpisodes.isNotEmpty() || isLoadingNewEpisodes
+    // Stalow: Google Drive folders put in Podcasts are listed with the channels (the chips narrow the list)
+    val sourceFilter = com.jtech.zemer.accounts.rememberSourceFilter()
+    val driveAll by com.jtech.zemer.accounts.DriveLibrary.items.collectAsState()
+    val driveFolders = androidx.compose.runtime.remember(driveAll, searchQuery) {
+        driveAll.filter { it.category == "podcasts" && it.artistId == null && (searchQuery.isBlank() || it.title.contains(searchQuery.trim(), ignoreCase = true)) }
+    }
+    val mixedItems: List<Any> = (if (sourceFilter.showsYouTube) podcasts.orEmpty() else emptyList<Any>()) +
+        (if (sourceFilter.showsDrive) driveFolders else emptyList())
 
     BrowseScreenScaffold(
         navController = navController,
         scrollBehavior = scrollBehavior,
-        items = podcasts.orEmpty(),
+        items = mixedItems,
         isLoading = podcasts == null,
         shimmerThumbnailShape = RoundedCornerShape(ThumbnailCornerRadius),
-        itemKey = { it.channelId },
-        itemName = { it.name },
+        itemKey = { if (it is com.jtech.zemer.accounts.DriveLibrary.Item) "drive_" + it.id else (it as com.jtech.zemer.db.entities.PodcastWhitelistEntity).channelId },
+        itemName = { if (it is com.jtech.zemer.accounts.DriveLibrary.Item) it.title else (it as com.jtech.zemer.db.entities.PodcastWhitelistEntity).name },
+        topSections = { com.jtech.zemer.accounts.SourceFilterChips() },
         viewType = viewType,
         onToggleViewType = { viewType = viewType.toggle() },
         searchQuery = searchQuery,
@@ -138,20 +147,24 @@ fun WhitelistedPodcastsScreen(
         } else {
             null
         },
-        listItemContent = { _, podcast, modifier ->
-            WhitelistedPodcastListItem(
+        listItemContent = { _, entry, modifier ->
+            if (entry is com.jtech.zemer.accounts.DriveLibrary.Item) {
+                com.jtech.zemer.accounts.DriveListItem(entry, modifier) { navController.navigate("drive/${entry.id}") }
+            } else WhitelistedPodcastListItem(
                 navController = navController,
                 menuState = menuState,
                 modifier = modifier,
-                podcast = podcast,
+                podcast = entry as com.jtech.zemer.db.entities.PodcastWhitelistEntity,
             )
         },
-        gridItemContent = { _, podcast, modifier ->
-            WhitelistedPodcastGridItem(
+        gridItemContent = { _, entry, modifier ->
+            if (entry is com.jtech.zemer.accounts.DriveLibrary.Item) {
+                com.jtech.zemer.accounts.DriveCard(entry, modifier) { navController.navigate("drive/${entry.id}") }
+            } else WhitelistedPodcastGridItem(
                 navController = navController,
                 menuState = menuState,
                 modifier = modifier,
-                podcast = podcast,
+                podcast = entry as com.jtech.zemer.db.entities.PodcastWhitelistEntity,
             )
         },
     )

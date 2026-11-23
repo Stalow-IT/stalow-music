@@ -173,6 +173,10 @@ class VideoModeController(
     // resolution). The cache has its own revision; block/cast/metadata are their own flows.
     private val recompute = MutableStateFlow(0)
 
+    private val _weakConnectionEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** One-shot: video kept stalling, so the item went on as audio → the UI says why. */
+    val weakConnectionEvents: SharedFlow<Unit> = _weakConnectionEvents.asSharedFlow()
+
     private val _videoErrorEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** One-shot: a video-mode playback error reverted to audio → the UI shows a snackbar. */
     val videoErrorEvents: SharedFlow<Unit> = _videoErrorEvents.asSharedFlow()
@@ -215,8 +219,19 @@ class VideoModeController(
      * SELF or a downloaded LOCAL file) starts as video when the preference is on. Music stays audio. Availability can arrive
      * after the audio starts (the type is learned from the stream), so this runs on every recompute.
      */
+    // Set when the user shrinks the player to the mini bar (they are browsing): the next items then don't
+    // pop the player open as video. Cleared when the player opens again or the user plays something new.
+    @Volatile
+    private var autoVideoPaused = false
+
+    /** The player was shrunk (paused = true) or opened / something new was played (false). */
+    fun pauseAutoVideo(paused: Boolean) {
+        autoVideoPaused = paused
+        if (!paused) mainHandler.post { recomputeNow() }
+    }
+
     private fun maybeStartAsVideo(rendition: VideoModeLogic.Rendition?) {
-        if (!videoFirst || rendition == null || _isVideoMode.value) return
+        if (!videoFirst || rendition == null || _isVideoMode.value || autoVideoPaused) return
         // Only once playback is starting: a queue restored paused at app start must not open full screen.
         if (!player.playWhenReady) return
         if (rendition.kind != RenditionKind.SELF && rendition.kind != RenditionKind.LOCAL) return
@@ -227,7 +242,7 @@ class VideoModeController(
         if (autoStartedId == id) return
         autoStartedId = id
         mainHandler.post {
-            if (service.currentMediaMetadata.value?.id == id && !_isVideoMode.value) setVideoMode(true)
+            if (service.currentMediaMetadata.value?.id == id && !_isVideoMode.value) setVideoMode(true, "auto start (podcast / channel)")
         }
     }
 
@@ -235,7 +250,7 @@ class VideoModeController(
     fun chooseVideo(video: Boolean) {
         videoFirst = video
         scope.launch { service.dataStore.edit { it[VideoFirstKey] = video } }
-        setVideoMode(video)
+        setVideoMode(video, if (video) "you (Video)" else "you (Audio only)")
     }
 
     /**
@@ -439,7 +454,14 @@ class VideoModeController(
         val renditionId = videoRenditionId ?: return
         // AUTO already plays the cheapest single-stream pick — nothing to drop to.
         val current = _currentVideoQuality.value
-        if (current == VideoQualityLogic.AUTO) return
+        if (current == VideoQualityLogic.AUTO) {
+            // Stalow: the automatic pick is already the lightest stream, so repeated stalls mean the
+            // connection can't carry video: carry on as audio (it was stopping every few seconds) and say so.
+            PlaybackReport.add("video kept stalling at automatic quality: switching to audio")
+            exitVideoModeSameItem()
+            scope.launch { _weakConnectionEvents.emit(Unit) }
+            return
+        }
         val rungs = qualityLadders[renditionId] ?: return
         // Step down exactly ONE rung, so playback settles on the HIGHEST rung that actually plays
         // (e.g. 2160p → 1440p → 1080p → 720p, stopping the moment 720p is stable). We deliberately do
@@ -517,7 +539,10 @@ class VideoModeController(
             // process death — after a queue restore the registry is empty, so without it the toggle
             // silently disappeared for a flagged song until the on-expand probe round-tripped. A
             // LEARNED musicVideoType (including ATV) still overrides both — see availability().
-            corpusVideoSong = VideoSongIds.contains(id) || meta.isVideo,
+            // Stalow: podcasts and the approved channels' uploads are videos from the start, so they can start
+            // as video at once instead of playing as audio until YouTube's answer confirms it (audio -> video jump).
+            corpusVideoSong = VideoSongIds.contains(id) || meta.isVideo ||
+                com.jtech.zemer.utils.StalowChannels.startsAsVideo(meta.isEpisode, meta.artists.map { it.id }),
             counterpartVideoId = avail?.counterpartVideoId,
             isBlockedRendition = { rid -> BlockedIdsCache.isBlocked(rid, ContentFilterState.current) },
         )
@@ -535,7 +560,8 @@ class VideoModeController(
     // ---- UI-facing API (via PlayerConnection) ------------------------------
 
     /** Enter/leave video mode. No-op when unavailable (blocked/casting/no rendition). */
-    fun setVideoMode(enabled: Boolean) {
+    fun setVideoMode(enabled: Boolean, reason: String = "") {
+        PlaybackReport.add("video ${if (enabled) "on" else "off"} requested${if (reason.isNotEmpty()) " by $reason" else ""} (was ${_isVideoMode.value})")
         if (enabled) {
             if (_isVideoMode.value) return
             val rendition = computeAvailability() ?: return
@@ -579,6 +605,7 @@ class VideoModeController(
      * authenticated `next()` probe found none; this records the item's OWN type only.)
      */
     fun requestVideoAvailability(mediaId: String) {
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(mediaId)) return // a Drive file is not on YouTube
         // Callable from any thread (the expanded player AND the data-source resolver) — all state is
         // touched on [scope] (main).
         scope.launch {
@@ -683,6 +710,7 @@ class VideoModeController(
             // and the rebuffer guard handles that.
         }
         reportException(error, "Video mode playback error")
+        PlaybackReport.add("video playback error, back to audio: ${error.errorCodeName}")
         exitVideoModeSameItem()
         scope.launch { _videoErrorEvents.emit(Unit) }
         return !wasLocal

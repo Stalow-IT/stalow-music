@@ -78,14 +78,30 @@ object ZemerContentClient {
         }
     }
 
-    /** The built-in list's version: raising it makes existing installs re-import the list on next launch. */
+    /** The built-in list's version (and the admins' changes): raising it makes existing installs re-import the list. */
     @Suppress("UNUSED_PARAMETER")
-    suspend fun version(firstSync: Boolean = false): Long = builtIn.version
+    suspend fun version(firstSync: Boolean = false): Long = builtIn.version * 1_000_000 + CatalogOverrides.version
+
+    /** The built-in artists, before the admins' changes (Settings > Channels & artists). */
+    fun builtInArtists(): List<ContentWhitelistDoc> = builtIn.artists
+
+    /** The built-in artist list with the admins' changes ([CatalogOverrides]) applied. */
+    internal fun effectiveArtists(base: List<ContentWhitelistDoc>, overrides: Map<String, CatalogOverrides.Entry>): List<ContentWhitelistDoc> {
+        if (overrides.isEmpty()) return base
+        val idOf = { d: ContentWhitelistDoc -> d.id.ifBlank { d.artistId.orEmpty() } }
+        val byId = base.associateBy(idOf)
+        val kept = base.filter { idOf(it) !in overrides }
+        val added = overrides.values.filter { it.isMusic && !it.removed }.map { e ->
+            byId[e.id]?.let { d -> d.copy(thumbnail = e.thumbnail.ifBlank { d.thumbnail }) }
+                ?: ContentWhitelistDoc(id = e.id, name = e.name.ifBlank { e.id }, thumbnail = e.thumbnail.ifBlank { null })
+        }
+        return kept + added
+    }
 
     /** The built-in artist whitelist. Throws on an empty list so a broken file can never wipe a good table. */
     @Suppress("UNUSED_PARAMETER")
     suspend fun whitelist(reuseRecent: Boolean = false, firstSync: Boolean = false): List<ContentWhitelistDoc> {
-        val docs = builtIn.artists.filter { (it.id.ifBlank { it.artistId.orEmpty() }).isNotBlank() }
+        val docs = effectiveArtists(builtIn.artists, CatalogOverrides.entries).filter { (it.id.ifBlank { it.artistId.orEmpty() }).isNotBlank() }
         if (docs.isEmpty()) error("content mirror: empty /whitelist")
         return docs
     }
@@ -100,8 +116,8 @@ object ZemerContentClient {
     @Suppress("UNUSED_PARAMETER")
     suspend fun podcastsWhitelist(firstSync: Boolean = false): List<ContentPodcastDoc> = StalowChannels.all()
 
-    /** Removals are not tracked separately: an artist left out of the built-in list simply stops showing. */
-    suspend fun removedArtists(): Set<String> = emptySet()
+    /** Artists an admin removed (Settings > Channels & artists): their songs leave the phone too, so they show nowhere. */
+    suspend fun removedArtists(): Set<String> = CatalogOverrides.removedIds()
 
     @Suppress("UNUSED_PARAMETER")
     suspend fun blockedIds(firstSync: Boolean = false): Map<String, String> = emptyMap()

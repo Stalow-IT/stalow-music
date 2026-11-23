@@ -1,9 +1,14 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session, net } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session, net, protocol } = require('electron');
+const { createDriveHandler, driveErrorText } = require('./drive-stream');
+// Google Drive songs play through stalow-drive://file/<id> (see drive-stream.js); streamed, with seeking
+protocol.registerSchemesAsPrivileged([{ scheme: 'stalow-drive', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }]);
+let lastDriveError = null;
 const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
-const { loadArtists, loadChannels, Catalog } = require('./catalog');
+const { loadArtists, loadChannels, applyOverrides, catalogRows, Catalog } = require('./catalog');
+const { Accounts } = require('./accounts');
 const { Player, PAGE_SCRIPT, STATUS_PREFIX } = require('./player');
 const { DownloadManager } = require('./download-manager');
 const { Sync, SHARED_SETTINGS } = require('./sync');
@@ -20,6 +25,30 @@ if (!app.requestSingleInstanceLock()) app.quit();
 let win = null;
 let player = null;
 let catalog = null;
+let accounts = null;
+let baseList = null;
+let baseChannels = null;
+/** The approved lists: built in, with the admins' changes on top (Settings > Channels & artists). */
+function buildCatalog() {
+  const s = readSettings();
+  const { list, channels } = applyOverrides(baseList, baseChannels, accounts.catalog.entries);
+  catalog = new Catalog(list, { allowFemale: s.allowFemale, blockPodcasts: s.blockPodcasts, channels });
+}
+const accountState = () => ({ ...accounts.state, isAdmin: accounts.isAdmin });
+/** The Google Drive folders and files the admins added, kept on the PC so they show offline too. */
+let driveCache = [];
+async function refreshDrive() {
+  if (accounts.state.status !== 'approved') return;
+  const items = (await accounts.call('drive.list')).items || [];
+  if (JSON.stringify(items) !== JSON.stringify(driveCache)) { driveCache = items; writeRaw(dataFile('stalow-drive'), items); send('drive-changed', true); }
+}
+/** Looks again at this PC's approval and the admins' changes; tells the window when either changed. */
+async function checkAccount() {
+  const before = JSON.stringify(accounts.state);
+  await accounts.refresh();
+  if (JSON.stringify(accounts.state) !== before) send('account', accountState());
+  if (await accounts.refreshCatalog()) { buildCatalog(); send('catalog-changed', true); }
+}
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 const readRaw = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
 const writeRaw = (file, data) => { try { fs.writeFileSync(file, JSON.stringify(data)); return true; } catch { return false; } };
@@ -29,8 +58,10 @@ const writeSettings = (s) => writeRaw(settingsFile(), settingsSchema.normalize(s
 
 // Listen history and search history, each in its own file (Settings > Privacy, and backups).
 const dataFile = (name) => path.join(app.getPath('userData'), `${name}.json`);
-const DATA = { history: 'history', searchHistory: 'search-history', likes: 'likes' };
-const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(x.id) ? {
+const RELEASES_URL = 'https://dzrnortzhpnoussbeedv.supabase.co/functions/v1/stalow-releases';
+let releasesCache = null;
+const DATA = { history: 'history', searchHistory: 'search-history', likes: 'likes', plays: 'plays' };
+const cleanSong = (x) => (x && typeof x.id === 'string' && /^(?:[\w-]{6,20}|drive:[\w-]{10,100})$/.test(x.id) ? {
   type: 'song', id: x.id, title: String(x.title || '').slice(0, 300),
   artists: (Array.isArray(x.artists) ? x.artists : []).filter((a) => a && typeof a.name === 'string').slice(0, 10).map((a) => ({ id: typeof a.id === 'string' ? a.id : null, name: a.name.slice(0, 200) })),
   album: x.album && typeof x.album.title === 'string' ? { id: typeof x.album.id === 'string' ? x.album.id : '', title: x.album.title.slice(0, 300) } : null,
@@ -39,8 +70,10 @@ const cleanSong = (x) => (x && typeof x.id === 'string' && /^[\w-]{6,20}$/.test(
   ...(typeof x.playedAt === 'number' ? { playedAt: x.playedAt } : {}),
   ...(typeof x.likedAt === 'number' ? { likedAt: x.likedAt } : {}),
   ...(x.unliked === true ? { unliked: true } : {}),
+  // Home > Most played: when the song was played (the last 50 times)
+  ...(Array.isArray(x.playTimes) ? { playTimes: x.playTimes.filter((n) => typeof n === 'number').slice(-50) } : {}),
 } : null);
-const cleanHistory = (list) => (Array.isArray(list) ? list.map(cleanSong).filter(Boolean).slice(0, 500) : []);
+const cleanHistory = (list, max = 500) => (Array.isArray(list) ? list.map(cleanSong).filter(Boolean).slice(0, max) : []);
 const cleanSearches = (list) => (Array.isArray(list) ? list.filter((q) => q && typeof q.q === 'string' && q.q.trim()).map((q) => ({ q: q.q.trim().slice(0, 200), at: typeof q.at === 'number' ? q.at : Date.now() })).slice(0, 200) : []);
 const cleanSession = (s) => {
   if (!s || !Array.isArray(s.queue)) return null;
@@ -100,12 +133,65 @@ function updateThumbar(playing) {
 
 // ---------- catalog calls (all results filtered by the approved list) ----------
 const handlers = {
+  // ---- accounts (approval) and, for admins, users and the channel / artist list ----
+  'account:state': async () => accountState(),
+  'account:register': async (name) => { await accounts.register(String(name || '').slice(0, 60)); checkAccount().catch(() => {}); return accountState(); },
+  'account:claim': async ({ name, code } = {}) => { await accounts.claimOwner(String(name || '').slice(0, 60), String(code || '').slice(0, 40)); checkAccount().catch(() => {}); return accountState(); },
+  'account:refresh': async () => { await checkAccount(); return accountState(); },
+  'admin:accounts': async () => accounts.accounts(),
+  'admin:decide': async ({ id, status, role } = {}) => accounts.decide(String(id || ''), { status, role }),
+  'admin:search': async (q) => accounts.search(String(q || '').slice(0, 100)),
+  'admin:pictures': async ({ id, q } = {}) => accounts.pictures(String(id || ''), String(q || '').slice(0, 100)),
+  'admin:rows': async () => catalogRows(baseList, baseChannels, accounts.catalog.entries),
+  // Google Drive (Settings > Google Drive): the shared list for everyone; admins add and change it
+  'drive:list': async () => { refreshDrive().catch(() => {}); return driveCache; },
+  'drive:lastError': async () => (lastDriveError ? driveErrorText(lastDriveError) : ''),
+  'admin:driveAll': async () => (await accounts.call('drive.all')).items || [],
+  'admin:driveAdd': async (a = {}) => {
+    const r = await accounts.call('drive.add', { link: String(a.link || '').slice(0, 500), category: String(a.category || ''), title: String(a.title || '').slice(0, 200), artistId: a.artistId || undefined, year: a.year || undefined });
+    await refreshDrive(); return r.item;
+  },
+  'admin:driveSet': async (a = {}) => {
+    const r = await accounts.call('drive.set', { id: String(a.id || ''), title: a.title, category: a.category, removed: a.removed, refresh: a.refresh === true || undefined, deleteCopy: a.deleteCopy === true || undefined });
+    await refreshDrive(); return r.item;
+  },
+  'admin:albums': async (id) => accounts.call('catalog.albums', { id: String(id || '') }),
+  'admin:compare': async (id) => accounts.call('catalog.compare', { id: String(id || '') }),
+  // Copy to my Google Drive (the owner's own script copies everything added into their Drive)
+  'admin:copierGet': async () => accounts.call('drive.copier.get'),
+  'admin:copierSet': async (url) => accounts.call('drive.copier.set', { url: String(url || '').slice(0, 300) }),
+  'admin:copierClear': async () => accounts.call('drive.copier.clear'),
+  'app:copyText': async (text) => { require('electron').clipboard.writeText(String(text || '').slice(0, 100000)); return true; },
+  'admin:set': async (entry) => {
+    const e = entry || {};
+    await accounts.setEntry({ id: String(e.id || ''), name: String(e.name || '').slice(0, 200), thumbnail: String(e.thumbnail || ''), category: String(e.category || ''), removed: e.removed === true });
+    buildCatalog();
+    send('catalog-changed', true);
+    return true;
+  },
   'catalog:search': async (q) => searchAll(api, catalog, q),
   'catalog:artists': async (text) => catalog.findArtists(text),
   // the approved Podcasts, Shiurim and Videos channels: their uploads start as video (music stays audio)
   'catalog:channelIds': async () => [...catalog.channels.keys()],
   'catalog:channels': async ({ category, text } = {}) => catalog.channelList(category, text),
   'catalog:home': async (recentArtistIds) => ({ artists: catalog.homeArtists(recentArtistIds, 18) }),
+  // Home > New releases: the approved artists' new albums and singles (the same list as the phone app)
+  'catalog:releases': async () => {
+    if (!releasesCache || Date.now() - releasesCache.at > 15 * 60000) {
+      try {
+        const res = await net.fetch(RELEASES_URL);
+        if (res.ok) {
+          const feed = await res.json();
+          const items = (Array.isArray(feed.releases) ? feed.releases : []).filter((r) => r && /^MPRE[\w-]+$/.test(r.browseId) && /^UC[\w-]+$/.test(r.artistId)).map((r) => ({
+            type: 'album', id: r.browseId, title: String(r.title || '').slice(0, 300), artists: [{ id: r.artistId, name: String(r.artistName || '') }],
+            thumbnail: /^https:\/\//.test(r.thumbnail || '') ? r.thumbnail : '', year: r.year || null,
+          }));
+          releasesCache = { at: Date.now(), items };
+        }
+      } catch (e) { /* keep the last list */ }
+    }
+    return releasesCache ? catalog.filterItems(releasesCache.items) : [];
+  },
   // the full list behind a shelf's "See all" on an artist or channel page
   'catalog:shelf': async ({ id, name, more } = {}) => {
     if (typeof id !== 'string' || !catalog.canOpen(id)) return { notApproved: true };
@@ -169,8 +255,8 @@ const handlers = {
   'data:get': async (name) => { if (!DATA[name]) throw new Error('Unknown data'); return readRaw(dataFile(DATA[name]), []); },
   'data:set': async ({ name, value } = {}) => {
     if (!DATA[name]) throw new Error('Unknown data');
-    writeRaw(dataFile(DATA[name]), name === 'searchHistory' ? cleanSearches(value) : cleanHistory(value));
-    if (sync && name !== 'searchHistory') sync.soon();
+    writeRaw(dataFile(DATA[name]), name === 'searchHistory' ? cleanSearches(value) : cleanHistory(value, name === 'plays' ? 1000 : 500));
+    if (sync && name !== 'searchHistory' && name !== 'plays') sync.soon();
   },
   // Settings > Sync (phone <-> PC)
   'sync:info': async () => sync.info(),
@@ -304,6 +390,12 @@ function applySettings(s, changed = null) {
 }
 
 app.whenReady().then(async () => {
+  // a separate connection with no Google sign-in, so Drive treats every play the same
+  const driveSession = session.fromPartition('stalow-drive');
+  protocol.handle('stalow-drive', createDriveHandler({
+    fetchImpl: (url, init) => driveSession.fetch(url, init),
+    onError: (e) => { lastDriveError = e; },
+  }));
   const startSettings = readSettings();
   downloads = new Downloads(path.join(app.getPath('userData'), 'downloads.json'), path.join(app.getPath('music'), 'Stalow Music'));
   manager = new DownloadManager({
@@ -346,7 +438,18 @@ app.whenReady().then(async () => {
   });
   sync.start();
   setTimeout(() => sync.syncNow().catch(() => {}), 8000);
-  catalog = new Catalog(loadArtists(), { allowFemale: startSettings.allowFemale, blockPodcasts: startSettings.blockPodcasts, channels: loadChannels() });
+  accounts = new Accounts({
+    file: path.join(app.getPath('userData'), 'account.json'),
+    catalogFile: path.join(app.getPath('userData'), 'stalow-catalog.json'),
+    fetchImpl: (url, init) => net.fetch(url, init),
+    deviceName: `Windows: ${os.hostname()}`.slice(0, 80),
+  });
+  baseList = loadArtists();
+  baseChannels = loadChannels();
+  buildCatalog();
+  driveCache = readRaw(dataFile('stalow-drive'), []);
+  setTimeout(() => checkAccount().then(() => refreshDrive()).catch(() => {}), 1500);
+  setInterval(() => checkAccount().then(() => refreshDrive()).catch(() => {}), 10 * 60 * 1000);
   player = new Player((ev) => {
     if (ev.state === 'playing') updateThumbar(true);
     else if (ev.state === 'paused' || ev.state === 'ended') updateThumbar(false);

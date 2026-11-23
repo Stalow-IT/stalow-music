@@ -39,6 +39,7 @@ import androidx.media3.common.Player.STATE_IDLE
 import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
@@ -592,6 +593,8 @@ class MusicService :
                     sleepTimer = SleepTimer(scope, this@MusicService)
                     addListener(sleepTimer)
                     addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
+                    addAnalyticsListener(PlaybackReport.Listener()) // Settings > Playback report
+                    addAnalyticsListener(slowStreamGuard)
                     setOffloadEnabled(dataStore.get(AudioOffload, false))
                 }
 
@@ -835,6 +838,33 @@ class MusicService :
                 delay(30.seconds)
                 if (dataStore.get(PersistentQueueKey, true)) {
                     saveQueueToDisk()
+                }
+            }
+        }
+
+        // Stalow: playback comes before downloads (PlaybackBandwidth) - checked every second.
+        scope.launch {
+            while (isActive) {
+                delay(1.seconds)
+                val id = player.currentMediaItem?.mediaId
+                val wasNeeded = PlaybackBandwidth.needed
+                PlaybackBandwidth.needed = PlaybackBandwidth.shouldYield(
+                    playWhenReady = player.playWhenReady,
+                    hasItem = id != null,
+                    localFile = id != null && playbackSourceIsLocalFile(id),
+                    buffering = player.playbackState == Player.STATE_BUFFERING,
+                    bufferedAheadMs = player.totalBufferedDuration,
+                )
+                if (wasNeeded != PlaybackBandwidth.needed) PlaybackReport.add("downloads ${if (PlaybackBandwidth.needed) "slowed (playback short of buffer)" else "at full speed"}")
+                // Every 10 s while playing: a snapshot of the situation.
+                if (player.playWhenReady && (System.currentTimeMillis() / 1000) % 10 == 0L) {
+                    val active = runCatching { downloadUtil.getAllMediaStoreDownloads().value.values.count { it.status == MediaStoreDownloadManager.DownloadState.Status.DOWNLOADING } }.getOrDefault(0)
+                    PlaybackReport.add(
+                        "snapshot: ${if (player.isPlaying) "playing" else "not playing"} at ${player.currentPosition / 1000}s/${player.duration.takeIf { it > 0 }?.div(1000) ?: "?"}s, " +
+                            "buffered ${player.totalBufferedDuration / 1000}s, downloads running $active, " +
+                            "video ${videoModeController.isVideoMode.value}, local file ${id != null && playbackSourceIsLocalFile(id)}, " +
+                            "mode ${if (isSabrPlaybackMode()) "SABR" else if (isRelayPlaybackMode()) "relay" else "direct"}"
+                    )
                 }
             }
         }
@@ -1130,6 +1160,12 @@ class MusicService :
         mediaId: String,
         playbackData: YTPlayerUtils.PlaybackData? = null
     ) {
+        // A Drive file has no YouTube details or related songs: just keep it in the library (history).
+        if (com.jtech.zemer.accounts.DriveMedia.isDrive(mediaId)) {
+            val meta = withContext(Dispatchers.Main) { player.findNextMediaItemById(mediaId)?.metadata } ?: return
+            if (database.song(mediaId).first() == null) database.query { insert(meta) }
+            return
+        }
         val song = database.song(mediaId).first()
         val mediaMetadata = withContext(Dispatchers.Main) {
             player.findNextMediaItemById(mediaId)?.metadata
@@ -2074,6 +2110,61 @@ class MusicService :
         }
     }
 
+    // Stalow: which client served each item's audio stream (for the slow-stream recovery below).
+    private val streamClientById = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val slowRecoveries = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /**
+     * Stalow: a stream that crawls instead of failing. A playback report showed the audio arriving at
+     * ~7 kbit/s (16 KB, then a read timeout, again and again) for ten minutes - ExoPlayer just keeps
+     * retrying the same link, so the sound played 2 s, stopped 15 s, and so on. After the second load
+     * timeout on an item within a minute, that client is skipped for it and the stream is resolved again
+     * (the next client) from the same position. At most 3 times per item.
+     */
+    private val slowStreamGuard = object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+        private val timeouts = ArrayDeque<Long>()
+        private var forId: String? = null
+        override fun onLoadError(
+            eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+            loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+            mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+            error: java.io.IOException,
+            wasCanceled: Boolean,
+        ) {
+            if (wasCanceled || videoModeController.isVideoMode.value) return
+            var c: Throwable? = error
+            var timedOut = false
+            while (c != null) { if (c is java.net.SocketTimeoutException) { timedOut = true; break }; c = c.cause }
+            if (!timedOut) return
+            val id = player.currentMediaItem?.mediaId ?: return
+            if (playbackSourceIsLocalFile(id)) return
+            if (id != forId) { forId = id; timeouts.clear() }
+            val now = android.os.SystemClock.elapsedRealtime()
+            timeouts.addLast(now)
+            while (timeouts.isNotEmpty() && now - timeouts.first() > 60_000) timeouts.removeFirst()
+            if (timeouts.size >= 2) {
+                timeouts.clear()
+                recoverSlowStream(id)
+            }
+        }
+    }
+
+    private fun recoverSlowStream(mediaId: String) {
+        val tries = slowRecoveries.merge(mediaId, 1, Int::plus) ?: 1
+        if (tries > 3) return
+        val client = streamClientById[mediaId]
+        PlaybackReport.add("stream for $mediaId crawls (${client ?: "unknown client"}): trying another source (try $tries of 3)")
+        if (client != null) YTPlayerUtils.markSlowClient(mediaId, client)
+        if (client == null || client == "WEB_REMIX") YTPlayerUtils.markWebRemixFailed(mediaId)
+        DownloadUtil.invalidateUrl(mediaId)
+        val position = player.currentPosition
+        // The next source may be another format: drop this item's partly cached bytes so the two never mix.
+        player.stop()
+        runCatching { playerCache.removeResource(mediaId) }
+        player.seekTo(player.currentMediaItemIndex, position)
+        player.prepare()
+    }
+
     /**
      * Handles expired URL errors by clearing the cached URL and immediately retrying.
      */
@@ -2225,9 +2316,28 @@ class MusicService :
     private fun stampCpn(url: String, mediaId: String): String =
         PlaybackNonceRegistry.appendCpn(url, watchTimeReporter.mediaCpnFor(VideoRendition.baseVideoId(mediaId)))
 
+    /**
+     * Stalow: a read served from the player cache stops at the cached chunk, like a network read
+     * (CHUNK_LENGTH). Unbounded, the cache source would carry on past the cached bytes to the network with
+     * the item's own uri — a bare id or `video:<id>`, not a web address — so the read failed there
+     * ("Malformed URL" for video, which ended video mode; "FileNotFoundException" for audio). Bounded, the
+     * player's next read comes back through the resolver, which finds the real stream address.
+     */
+    private fun cachedChunk(dataSpec: DataSpec): DataSpec =
+        dataSpec.subrange(
+            dataSpec.uriPositionOffset,
+            if (dataSpec.length >= 0) minOf(dataSpec.length, CHUNK_LENGTH) else CHUNK_LENGTH,
+        )
+
     private fun createDataSourceFactory(): DataSource.Factory {
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
             val mediaId = dataSpec.key ?: error("No media id")
+
+            // Stalow: a Google Drive file (Settings > Google Drive) streams straight from Drive's download
+            // address — none of the YouTube stream machinery applies.
+            if (com.jtech.zemer.accounts.DriveMedia.isDrive(mediaId)) {
+                return@Factory dataSpec.withUri(com.jtech.zemer.accounts.DriveMedia.streamUrl(mediaId).toUri())
+            }
 
             // Video-mode rendition: a `video:<id>` key resolves its video stream via the same
             // YTPlayerUtils path as audio (preferVideo=true), bypassing all the audio-only machinery —
@@ -2243,7 +2353,7 @@ class MusicService :
                 // position-0 purge exists for). Plain `video:<id>` stays the automatic pick.
                 val renditionItag = VideoRendition.renditionItag(mediaId)
                 if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
-                    return@Factory dataSpec
+                    return@Factory cachedChunk(dataSpec)
                 }
                 songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
                     return@Factory dataSpec.withUri(stampCpn(it.first, mediaId).toUri())
@@ -2299,7 +2409,7 @@ class MusicService :
             if (VideoRendition.isMergeAudioKey(mediaId)) {
                 val audioId = mediaId.removePrefix("videoaudio:")
                 if (playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
-                    return@Factory dataSpec
+                    return@Factory cachedChunk(dataSpec)
                 }
                 songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
                     return@Factory dataSpec.withUri(stampCpn(it.first, mediaId).toUri())
@@ -2340,13 +2450,12 @@ class MusicService :
                 return@Factory dataSpec.withUri(it.toUri())
             }
 
-            if (downloadCache.isCached(
-                    mediaId,
-                    dataSpec.position,
-                    if (dataSpec.length >= 0) dataSpec.length else 1
-                ) ||
-                playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)
-            ) {
+            val inDownloadCache = downloadCache.isCached(
+                mediaId,
+                dataSpec.position,
+                if (dataSpec.length >= 0) dataSpec.length else 1
+            )
+            if (inDownloadCache || playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)) {
                 // Cached playback skips the stream resolution that records musicVideoType, so kick the
                 // on-demand probe NOW (deduped, one light call per unknown id per session) — the
                 // Song/Video toggle is then already decided by the time the player is expanded,
@@ -2354,7 +2463,7 @@ class MusicService :
                 // the fallback for items that start mid-span).
                 videoModeController.requestVideoAvailability(mediaId)
                 scope.launch(Dispatchers.IO) { recoverSong(mediaId) }
-                return@Factory dataSpec
+                return@Factory if (inDownloadCache) dataSpec else cachedChunk(dataSpec)
             }
 
             songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
@@ -2365,11 +2474,20 @@ class MusicService :
             val currentAuthCookie = YouTube.cookie
             val isLoggedIn = currentAuthCookie.cookieHasSession()
 
+            val resolveStartedAt = System.currentTimeMillis()
             val playbackData = runBlocking(Dispatchers.IO) {
                 YTPlayerUtils.playerResponseForPlayback(
                     mediaId,
                     audioQuality = audioQuality,
                     connectivityManager = connectivityManager,
+                )
+            }.also { r ->
+                // Settings > Playback report: which stream was found, and how long finding it took
+                PlaybackReport.add(
+                    r.fold(
+                        { d -> streamClientById[mediaId] = d.streamClient; "stream for $mediaId: ${d.streamClient} itag ${d.format.itag} ${d.format.mimeType.substringBefore(';')} ${d.format.bitrate / 1000} kbit/s, found in ${System.currentTimeMillis() - resolveStartedAt} ms" },
+                        { e -> "STREAM NOT FOUND for $mediaId after ${System.currentTimeMillis() - resolveStartedAt} ms: ${e.javaClass.simpleName}: ${e.message}" },
+                    )
                 )
             }.getOrElse { throwable ->
                 when (throwable) {
@@ -2807,6 +2925,7 @@ class MusicService :
                 (dataStore.get(PlaybackModeKey, PlaybackMode.DIRECT.name) == PlaybackMode.RELAY.name).also { relayModeNow = it }
             }
             val factory = when {
+                com.jtech.zemer.accounts.DriveMedia.isDrive(key) -> dataSourceFactory
                 relay -> relayDataSourceFactory
                 VideoRendition.isVideoKey(key) || VideoRendition.isMergeAudioKey(key) -> dataSourceFactory
                 sabrModeNow ?: run { dataStore.get(StreamSabrKey, false).also { sabrModeNow = it } } -> sabrDataSourceFactory
