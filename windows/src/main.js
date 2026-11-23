@@ -1,5 +1,9 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session, net } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, dialog, session, net, protocol } = require('electron');
+const { createDriveHandler, driveErrorText } = require('./drive-stream');
+// Google Drive songs play through stalow-drive://file/<id> (see drive-stream.js); streamed, with seeking
+protocol.registerSchemesAsPrivileged([{ scheme: 'stalow-drive', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } }]);
+let lastDriveError = null;
 const path = require('path');
 const fs = require('fs');
 const { api } = require('./ytm');
@@ -141,6 +145,7 @@ const handlers = {
   'admin:rows': async () => catalogRows(baseList, baseChannels, accounts.catalog.entries),
   // Google Drive (Settings > Google Drive): the shared list for everyone; admins add and change it
   'drive:list': async () => { refreshDrive().catch(() => {}); return driveCache; },
+  'drive:lastError': async () => (lastDriveError ? driveErrorText(lastDriveError) : ''),
   'admin:driveAll': async () => (await accounts.call('drive.all')).items || [],
   'admin:driveAdd': async (a = {}) => {
     const r = await accounts.call('drive.add', { link: String(a.link || '').slice(0, 500), category: String(a.category || ''), title: String(a.title || '').slice(0, 200), artistId: a.artistId || undefined, year: a.year || undefined });
@@ -385,6 +390,12 @@ function applySettings(s, changed = null) {
 }
 
 app.whenReady().then(async () => {
+  // a separate connection with no Google sign-in, so Drive treats every play the same
+  const driveSession = session.fromPartition('stalow-drive');
+  protocol.handle('stalow-drive', createDriveHandler({
+    fetchImpl: (url, init) => driveSession.fetch(url, init),
+    onError: (e) => { lastDriveError = e; },
+  }));
   const startSettings = readSettings();
   downloads = new Downloads(path.join(app.getPath('userData'), 'downloads.json'), path.join(app.getPath('music'), 'Stalow Music'));
   manager = new DownloadManager({

@@ -123,7 +123,8 @@ function applyShuffleToQueue() {
 
 // ---------- Google Drive files the admins added (Settings > Google Drive), shared as "Anyone with the link" ----------
 const isDrive = (id) => typeof id === 'string' && id.startsWith('drive:');
-const driveUrl = (id) => `https://drive.usercontent.google.com/download?id=${encodeURIComponent(id.slice(6))}&export=download&confirm=t`;
+// played through the app's own stalow-drive address: the main process fetches it from Drive and tries again when Drive refuses
+const driveUrl = (id) => `stalow-drive://file/${encodeURIComponent(id.slice(6))}`;
 let driveItems = [];
 const fileTitle = (name) => (String(name).split(' / ').pop().replace(/\.[^.]+$/, '') || name);
 /** A Drive folder's (or file's) files as songs the queue can play. */
@@ -173,7 +174,8 @@ const P = {
       stalow.pause().catch(() => {});
       localAudio.src = driveUrl(id);
       localAudio.volume = Number($('#vol').value);
-      return localAudio.play();
+      // a refused load is reported by the audio element's error event (and tried once more there)
+      return localAudio.play().catch((e) => { if (e && e.name === 'NotSupportedError') return undefined; throw e; });
     }
     const d = downloaded.get(id);
     if (d) {
@@ -194,7 +196,12 @@ const P = {
 function emitLocal(kind) {
   const cur = state.queue[state.index];
   if (!local || !cur) return;
-  if (kind === 'error' && isDrive(cur.id)) { local = false; return handlePlayerEvent({ state: 'error', id: cur.id, message: t('drive_play_failed') }); }
+  if (kind === 'error' && isDrive(cur.id)) {
+    // one more go with the same song before moving on (Drive sometimes refuses a moment)
+    if (state.driveRetry !== cur.id) { state.driveRetry = cur.id; return setTimeout(() => { if (state.queue[state.index] === cur) P.play(cur.id).catch(() => {}); }, 1500); }
+    local = false;
+    return stalow.driveLastError().catch(() => '').then((why) => handlePlayerEvent({ state: 'error', id: cur.id, message: why || t('drive_play_failed') }));
+  }
   if (kind === 'error') { downloaded.delete(cur.id); local = false; return P.play(cur.id); } // the file is gone: play it online
   handlePlayerEvent({ state: kind, time: localAudio.currentTime, duration: Number.isFinite(localAudio.duration) ? localAudio.duration : 0, id: cur.id });
   if (kind === 'playing' || kind === 'paused' || kind === 'ended') stalow.setPlaying(kind === 'playing').catch(() => {});
